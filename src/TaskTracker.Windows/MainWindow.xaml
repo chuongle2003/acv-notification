@@ -5,10 +5,16 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TaskTracker.Windows"
         mc:Ignorable="d"
-        Title="Windows Task Tracker" Height="600" Width="1000"
+        Title="Windows Task Tracker" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <local:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    </Window.Resources>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -28,7 +34,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Content="Đọc lại ngay" Command="{Binding RefreshDataCommand}" Padding="16,8" Margin="0,0,8,0" IsEnabled="{Binding IsLoading, Converter={x:Static local:InverseBooleanConverter.Instance}}"/>
+                <Button Content="Đọc lại ngay" Command="{Binding RefreshDataCommand}" Padding="16,8" Margin="0,0,8,0" IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBooleanConverter}}"/>
                 <Button Content="Chọn file khác" Padding="16,8" Margin="0,0,8,0"/>
                 <Button Content="Settings" Padding="16,8"/>
             </StackPanel>
@@ -65,10 +71,76 @@
             </Border>
         </UniformGrid>
 
-        <!-- Placeholder for DataGrid -->
-        <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Background="White">
-            <TextBlock Text="[ DataGrid placeholder - Task 15 ]" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="Gray"/>
-        </Border>
+        <!-- Filters -->
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Tìm kiếm:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Width="250" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="4" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <CheckBox Grid.Column="2" Content="Chỉ hiện chưa xem" IsChecked="{Binding ShowUnreadOnly}" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- Main Content: DataGrid and Detail Panel -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- DataGrid -->
+            <DataGrid ItemsSource="{Binding TasksView}" SelectedItem="{Binding SelectedTask}"
+                      AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" Margin="0,0,8,0">
+                <DataGrid.Columns>
+                    <DataGridCheckBoxColumn Header="Đã xem" /> <!-- Binding will be added later -->
+                    <DataGridTextColumn Header="Mức độ" Binding="{Binding CurrentStatus}" />
+                    <DataGridTextColumn Header="Sheet" Binding="{Binding SheetName}" />
+                    <DataGridTextColumn Header="STT" Binding="{Binding Stt}" />
+                    <DataGridTextColumn Header="Số CV" Binding="{Binding DocumentNumber}" Width="120" />
+                    <DataGridTextColumn Header="Nội dung" Binding="{Binding TaskContent}" Width="*" />
+                    <DataGridTextColumn Header="Xử lý chính" Binding="{Binding PrimaryHandler}" />
+                    <DataGridTextColumn Header="Thời hạn gốc" Binding="{Binding DeadlineRaw}" />
+                    <DataGridTextColumn Header="Còn lại (ngày)" Binding="{Binding DaysRemaining}" />
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Detail Panel -->
+            <Border Grid.Column="1" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4" Padding="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="CHI TIẾT NHIỆM VỤ" FontWeight="Bold" FontSize="14" Margin="0,0,0,16" Foreground="#374151"/>
+
+                        <TextBlock Text="Số công văn:" FontSize="12" Foreground="Gray"/>
+                        <TextBox Text="{Binding SelectedTask.DocumentNumber, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Nội dung:" FontSize="12" Foreground="Gray"/>
+                        <TextBox Text="{Binding SelectedTask.TaskContent, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Đơn vị / Xử lý chính:" FontSize="12" Foreground="Gray"/>
+                        <TextBlock Text="{Binding SelectedTask.PrimaryHandler}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Sheet nguồn:" FontSize="12" Foreground="Gray"/>
+                        <TextBlock Text="{Binding SelectedTask.SheetName}" Margin="0,0,0,16"/>
+
+                        <Separator Margin="0,0,0,16"/>
+
+                        <TextBlock Text="Trạng thái cảnh báo:" FontSize="12" Foreground="Gray"/>
+                        <TextBlock Text="{Binding SelectedTask.CurrentStatus}" FontWeight="SemiBold" Foreground="#B91C1C" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Thời hạn gốc:" FontSize="12" Foreground="Gray"/>
+                        <TextBlock Text="{Binding SelectedTask.DeadlineRaw}" Margin="0,0,0,8"/>
+
+                        <Button Content="Đã xem" Padding="8" Margin="0,16,0,0" Background="#2563EB" Foreground="White" BorderThickness="0"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
