@@ -3,6 +3,9 @@
     <RootNamespace>TaskTracker.Infrastructure</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.102.2" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\TaskTracker.Application\TaskTracker.Application.csproj" />
   </ItemGroup>
 </Project>
