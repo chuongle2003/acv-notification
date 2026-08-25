@@ -59,6 +59,12 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<MainWindowHandle>(sp =>
                     new MainWindowHandle(sp.GetRequiredService<MainWindow>()));
 
+                // Settings & auto-start (TASK-18)
+                services.AddSingleton<IAutoStartRegistrar, RegistryAutoStartRegistrar>();
+                services.AddSingleton<SqliteSettingsStore>();
+                services.AddSingleton<SettingsService>(sp =>
+                    new SettingsService(sp.GetRequiredService<SqliteSettingsStore>()));
+
                 // DB
                 var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TaskTracker", "tasktracker.db");
                 Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
@@ -142,6 +148,27 @@ public partial class App : System.Windows.Application
                 _ = mainVm.RefreshDataCommand.ExecuteAsync(null);
                 _tray?.UpdateTooltip("Task Tracker — đã đồng bộ lại sau sleep");
             });
+
+        // Apply persisted settings: auto-start registration follows the saved toggle.
+        var settingsService = AppHost.Services.GetRequiredService<SettingsService>();
+        var autoStart = AppHost.Services.GetRequiredService<IAutoStartRegistrar>();
+        var settings = settingsService.Load();
+        try
+        {
+            if (settings.StartWithWindows && !autoStart.IsEnabled())
+            {
+                autoStart.Enable(Environment.ProcessPath ?? "", new[] { "--background" });
+            }
+            else if (!settings.StartWithWindows && autoStart.IsEnabled())
+            {
+                autoStart.Disable();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Registry issues must not block startup.
+            System.Diagnostics.Debug.WriteLine($"Auto-start sync failed: {ex.Message}");
+        }
 
         _lifecycle.OnStartup(runInBackground);
     }

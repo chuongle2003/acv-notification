@@ -36,8 +36,8 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="Đọc lại ngay" Command="{Binding RefreshDataCommand}" Padding="16,8" Margin="0,0,8,0" IsEnabled="{Binding IsLoading, Converter={StaticResource InverseBooleanConverter}}"/>
-                <Button Content="Chọn file khác" Padding="16,8" Margin="0,0,8,0"/>
-                <Button Content="Settings" Padding="16,8"/>
+                <Button Content="Chọn file khác" Click="OnChangeSourceFileClick" Padding="16,8" Margin="0,0,8,0"/>
+                <Button Content="Settings" Click="OnSettingsClick" Padding="16,8"/>
             </StackPanel>
         </Grid>
 

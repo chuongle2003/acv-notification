@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Data;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Data;
@@ -9,6 +11,7 @@ using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Application;
 using TaskTracker.Domain;
 using TaskStatus = TaskTracker.Domain.TaskStatus;
+using TaskTracker.Infrastructure.Excel;
 using TaskTracker.Infrastructure.Persistence;
 
 namespace TaskTracker.Windows.ViewModels;
@@ -17,6 +20,9 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly ImportWorkbookUseCase _importUseCase;
     private readonly SqliteTaskRepository _repository;
+    private readonly SettingsService _settingsService;
+    private readonly ExcelReader _excelReader;
+    private readonly IDbConnectionFactory _connectionFactory;
 
     [ObservableProperty]
     private string _sourceFileName = "Chưa chọn file";
@@ -64,10 +70,14 @@ public partial class MainViewModel : ObservableObject
     private ICollectionView _tasksView;
     public ICollectionView TasksView => _tasksView;
 
-    public MainViewModel(ImportWorkbookUseCase importUseCase, SqliteTaskRepository repository)
+    public MainViewModel(ImportWorkbookUseCase importUseCase, SqliteTaskRepository repository,
+        SettingsService settingsService, ExcelReader excelReader, IDbConnectionFactory connectionFactory)
     {
         _importUseCase = importUseCase;
         _repository = repository;
+        _settingsService = settingsService;
+        _excelReader = excelReader;
+        _connectionFactory = connectionFactory;
 
         _tasksView = CollectionViewSource.GetDefaultView(Tasks);
         _tasksView.Filter = FilterTask;
@@ -76,6 +86,13 @@ public partial class MainViewModel : ObservableObject
         _tasksView.SortDescriptions.Add(new SortDescription(nameof(TaskRow.CurrentStatus), ListSortDirection.Ascending));
         _tasksView.SortDescriptions.Add(new SortDescription(nameof(TaskRow.SheetWeekNumber), ListSortDirection.Descending));
         _tasksView.SortDescriptions.Add(new SortDescription(nameof(TaskRow.SourceRowNumber), ListSortDirection.Ascending));
+
+        // Reflect the persisted source path on startup.
+        var savedPath = _settingsService.Load().SourceFilePath;
+        if (!string.IsNullOrEmpty(savedPath))
+        {
+            SourceFileName = Path.GetFileName(savedPath);
+        }
     }
 
     private bool FilterTask(object obj)
@@ -109,16 +126,36 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            // Just simulating load for UI structure since we don't have file picking wired up yet
-            await Task.Delay(500);
+            var sourcePath = _settingsService.Load().SourceFilePath;
 
-            // Update stats dummy
-            OverdueCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.Overdue);
-            DueTodayCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.DueToday);
-            DueSoonCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.DueSoon);
-            NeedsReviewCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.NeedsReview);
+            if (!string.IsNullOrEmpty(sourcePath) && File.Exists(sourcePath))
+            {
+                // File I/O and SQLite run on a worker thread; only UI updates marshal back.
+                var diagnostics = await Task.Run(async () =>
+                {
+                    await using var stream = File.OpenRead(sourcePath);
+                    // StableFileReader-style guard: a mid-write file yields an error
+                    // diagnostics row instead of a crash; the last good snapshot stays current.
+                    return _importUseCase.Execute(GetStableFileId(sourcePath), stream);
+                });
 
-            LastSyncStatus = $"Cập nhật lúc {DateTime.Now:HH:mm:ss}";
+                if (diagnostics.ErrorMessage != null)
+                {
+                    LastSyncStatus = $"Lỗi đọc file: {diagnostics.ErrorMessage}";
+                }
+                else
+                {
+                    LastSyncStatus = $"Đã nhập {diagnostics.ValidRowsImported} dòng lúc {DateTime.Now:HH:mm:ss}";
+                }
+
+                ReloadTasksFromDb();
+            }
+            else
+            {
+                LastSyncStatus = "Chưa chọn file nguồn (mở Cài đặt)";
+            }
+
+            UpdateSummaryCounts();
         }
         catch (Exception ex)
         {
@@ -128,5 +165,33 @@ public partial class MainViewModel : ObservableObject
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>Stable per-path id so logical row keys survive renames of the snapshot id.</summary>
+    private static string GetStableFileId(string path) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(path).ToLowerInvariant())))[..32].ToLowerInvariant();
+
+    public void ReloadTasksFromDb()
+    {
+        var sourcePath = _settingsService.Load().SourceFilePath;
+        if (string.IsNullOrEmpty(sourcePath)) return;
+
+        var fileId = GetStableFileId(sourcePath);
+        var rows = _repository.GetCurrentRows(fileId);
+
+        Tasks.Clear();
+        foreach (var row in rows)
+        {
+            Tasks.Add(row);
+        }
+    }
+
+    private void UpdateSummaryCounts()
+    {
+        OverdueCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.Overdue);
+        DueTodayCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.DueToday);
+        DueSoonCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.DueSoon);
+        NeedsReviewCount = Tasks.Count(t => t.CurrentStatus == TaskStatus.NeedsReview);
     }
 }
