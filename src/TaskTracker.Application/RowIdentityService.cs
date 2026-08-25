@@ -28,6 +28,13 @@ public class RowIdentityService
         return ComputeHash(rawKey);
     }
 
+    public string GenerateRawDeadlineFingerprint(string? rawDeadlineText)
+    {
+        // Fingerprint of the RAW cell content: if the user edits the Excel cell,
+        // the fingerprint changes and the old local correction no longer applies.
+        return ComputeHash(NormalizeStrict(rawDeadlineText));
+    }
+
     public string GenerateDeadlineVersion(
         DeadlineParserKind resolvedKind,
         DateOnly? startDate,

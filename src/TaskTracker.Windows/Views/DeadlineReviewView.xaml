@@ -1,0 +1,60 @@
+<UserControl x:Class="TaskTracker.Windows.Views.DeadlineReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Filter bar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Loại lỗi:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="KindFilterCombo" Width="220" Padding="4"
+                      SelectionChanged="KindFilterCombo_SelectionChanged"/>
+            <TextBlock Text="   Tổng cần rà soát:" VerticalAlignment="Center" Margin="16,0,8,0"/>
+            <TextBlock Text="{Binding TotalPending}" FontWeight="Bold" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Review grid -->
+        <DataGrid Grid.Row="1" x:Name="ReviewGrid"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                  Background="White" BorderBrush="#E5E7EB" BorderThickness="1"
+                  ItemsSource="{Binding ReviewItems}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Sheet" Binding="{Binding SheetName}" Width="90"/>
+                <DataGridTextColumn Header="Dòng" Binding="{Binding SourceRowNumber}" Width="60"/>
+                <DataGridTextColumn Header="Số CV" Binding="{Binding DocumentNumber}" Width="110"/>
+                <DataGridTextColumn Header="Nội dung" Binding="{Binding TaskContent}" Width="*"/>
+                <DataGridTextColumn Header="Loại lỗi" Binding="{Binding ProblemLabel}" Width="150"/>
+                <DataGridTextColumn Header="Gốc (Excel)" Binding="{Binding ExcelCandidateLabel}" Width="100"/>
+                <DataGridTextColumn Header="Đảo" Binding="{Binding SwappedCandidateLabel}" Width="100"/>
+                <DataGridTemplateColumn Header="Hành động" Width="290">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="2">
+                                <Button Content="Giữ gốc" Padding="6,2" Margin="0,0,4,0"
+                                        Command="{Binding DataContext.KeepCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                                <Button Content="Đảo ngày" Padding="6,2" Margin="0,0,4,0"
+                                        Command="{Binding DataContext.SwapCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                                <Button Content="Nhập tay..." Padding="6,2" Margin="0,0,4,0"
+                                        Command="{Binding DataContext.ManualCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                                <Button Content="Bỏ qua" Padding="6,2"
+                                        Command="{Binding DataContext.UnresolvedCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Status bar -->
+        <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Margin="0,8,0,0" Foreground="#0078D7"/>
+    </Grid>
+</UserControl>

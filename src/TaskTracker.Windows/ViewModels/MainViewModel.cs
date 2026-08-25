@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Application;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 using TaskTracker.Infrastructure.Persistence;
 
 namespace TaskTracker.Windows.ViewModels;

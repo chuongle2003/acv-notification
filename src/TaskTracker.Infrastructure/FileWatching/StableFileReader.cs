@@ -106,7 +106,7 @@ public class StableFileReader
             if (fs.Length < 4) return false;
 
             var buffer = new byte[4];
-            fs.Read(buffer, 0, 4);
+            ReadExactly(fs, buffer);
 
             // "PK\x03\x04"
             return buffer[0] == 0x50 && buffer[1] == 0x4B && buffer[2] == 0x03 && buffer[3] == 0x04;
@@ -123,6 +123,20 @@ public class StableFileReader
         using var stream = File.OpenRead(path);
         var hashBytes = sha256.ComputeHash(stream);
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
+    }
+
+    private static void ReadExactly(FileStream stream, byte[] buffer)
+    {
+        var totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            var read = stream.Read(buffer, totalRead, buffer.Length - totalRead);
+            if (read == 0)
+            {
+                throw new EndOfStreamException("Unexpected end of file while reading signature.");
+            }
+            totalRead += read;
+        }
     }
 }
 

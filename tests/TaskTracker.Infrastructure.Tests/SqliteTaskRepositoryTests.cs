@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 using TaskTracker.Infrastructure.Persistence;
 using Xunit;
 

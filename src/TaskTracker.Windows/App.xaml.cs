@@ -23,9 +23,7 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<ViewModels.MainViewModel>();
 
                 // Domain & Application
-                services.AddSingleton<Domain.IClock, Windows.Infrastructure.SystemClock>(
-                    _ => new Windows.Infrastructure.SystemClock(DateTimeOffset.UtcNow, DateOnly.FromDateTime(DateTime.Now)));
-                // Using FakeClock just to resolve the interface for MVP; Ideally we should make a RealClock. Let's make a RealClock later.
+                services.AddSingleton<Domain.IClock, Windows.Infrastructure.SystemClock>();
 
                 services.AddSingleton<Domain.DeadlineParser>();
                 services.AddSingleton<Domain.ExcelDateResolver>();
@@ -36,6 +34,15 @@ public partial class App : System.Windows.Application
 
                 services.AddSingleton<ExcelReader>();
                 services.AddSingleton<ImportWorkbookUseCase>();
+                services.AddSingleton<SqliteDeadlineResolutionRepository>();
+                services.AddSingleton<ResolveDeadlineUseCase>();
+                services.AddSingleton<Views.DeadlineReviewViewModel>(sp =>
+                {
+                    var resolve = sp.GetRequiredService<ResolveDeadlineUseCase>();
+                    // The active file id is owned by MainViewModel; resolved lazily at action time.
+                    return new Views.DeadlineReviewViewModel(resolve, () => "default-file");
+                });
+                services.AddSingleton<Views.DeadlineReviewView>();
 
                 // DB
                 var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TaskTracker", "tasktracker.db");

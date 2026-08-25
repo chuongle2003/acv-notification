@@ -3,6 +3,7 @@ using System.IO;
 using ClosedXML.Excel;
 using TaskTracker.Application;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 using TaskTracker.Domain.Tests.Fakes;
 using TaskTracker.Infrastructure.Excel;
 using TaskTracker.Infrastructure.Persistence;
@@ -102,19 +103,19 @@ public class ImportWorkbookUseCaseTests : IDisposable
         Assert.Equal(3, rows.Count);
 
         // Row 1: 29/08 is +5 days -> Normal
-        var row1 = rows.Find(r => r.DocumentNumber == "123/CV");
+        var row1 = rows.FirstOrDefault(r => r.DocumentNumber == "123/CV");
         Assert.NotNull(row1);
         Assert.Equal(TaskStatus.Normal, row1!.CurrentStatus);
         Assert.False(row1.IsCompleted);
         Assert.Equal(5, row1.DaysRemaining);
 
         // Row 2: Ambiguous
-        var row2 = rows.Find(r => r.DocumentNumber == "124/CV");
+        var row2 = rows.FirstOrDefault(r => r.DocumentNumber == "124/CV");
         Assert.NotNull(row2);
         Assert.Equal(TaskStatus.NeedsReview, row2!.CurrentStatus);
 
         // Row 3: Completed
-        var row3 = rows.Find(r => r.DocumentNumber == "125/CV");
+        var row3 = rows.FirstOrDefault(r => r.DocumentNumber == "125/CV");
         Assert.NotNull(row3);
         Assert.Equal(TaskStatus.Completed, row3!.CurrentStatus);
         Assert.True(row3.IsCompleted);

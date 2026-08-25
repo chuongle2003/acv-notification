@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 
 namespace TaskTracker.Application;
 

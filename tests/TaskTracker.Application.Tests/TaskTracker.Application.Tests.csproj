@@ -18,4 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\TaskTracker.Application\TaskTracker.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\TaskTracker.Domain.Tests\Fakes\FakeClock.cs" Link="Fakes\FakeClock.cs" />
+  </ItemGroup>
 </Project>

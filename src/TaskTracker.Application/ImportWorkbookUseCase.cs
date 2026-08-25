@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using TaskTracker.Domain;
-using TaskTracker.Infrastructure.Excel;
-using TaskTracker.Infrastructure.Persistence;
 
 namespace TaskTracker.Application;
 
@@ -18,21 +16,21 @@ public class ImportDiagnostics
 
 public class ImportWorkbookUseCase
 {
-    private readonly ExcelReader _excelReader;
+    private readonly IExcelWorkbookReader _excelReader;
     private readonly RowIdentityService _identityService;
     private readonly DeadlineParser _deadlineParser;
     private readonly ExcelDateResolver _excelResolver;
     private readonly TaskStatusCalculator _statusCalculator;
-    private readonly SqliteTaskRepository _repository;
+    private readonly ITaskRowStore _repository;
     private readonly IClock _clock;
 
     public ImportWorkbookUseCase(
-        ExcelReader excelReader,
+        IExcelWorkbookReader excelReader,
         RowIdentityService identityService,
         DeadlineParser deadlineParser,
         ExcelDateResolver excelResolver,
         TaskStatusCalculator statusCalculator,
-        SqliteTaskRepository repository,
+        ITaskRowStore repository,
         IClock clock)
     {
         _excelReader = excelReader;
@@ -66,6 +64,12 @@ public class ImportWorkbookUseCase
 
             _identityService.AssignIdentities(sourceFileId, dtoList);
 
+            // Stored user resolutions, keyed by (row key, raw fingerprint).
+            // Applied when the raw cell text is unchanged since the user fixed it.
+            var storedResolutions = _repository is IResolutionStore resolutionStore
+                ? resolutionStore.GetAll().ToDictionary(r => (r.LogicalRowKey, r.RawDeadlineFingerprint))
+                : new Dictionary<(string, string), DeadlineResolution>();
+
             // 3. Process each row
             var processedRows = new List<TaskRow>();
 
@@ -97,13 +101,49 @@ public class ImportWorkbookUseCase
                     diagnostics.AmbiguousDatesDetected++;
                 }
 
-                // Deadline version based on parsed spec (assuming parser source initially)
+                // Resolution source: user's stored fix wins over the parser when
+                // the raw cell text is unchanged (fingerprint match).
+                var rawText = raw.DeadlineCell?.TextValue;
+                var fingerprint = _identityService.GenerateRawDeadlineFingerprint(rawText);
+                var resolutionSource = ResolutionSource.Parser;
+                if (storedResolutions.TryGetValue((identity.LogicalRowKey, fingerprint), out var stored))
+                {
+                    if (stored.ResolutionSource == ResolutionSource.ManualDate && stored.SelectedStartDate != null)
+                    {
+                        deadlineSpec = new DeadlineSpec(
+                            deadlineSpec.Kind, rawText,
+                            stored.SelectedStartDate, stored.SelectedEndDate,
+                            stored.SelectedTime,
+                            stored.SelectedStartDate,
+                            stored.RequiresReview,
+                            stored.RequiresReview ? "UserMarkedUnresolved" : null,
+                            deadlineSpec.AmbiguousCandidates);
+                        resolutionSource = stored.ResolutionSource;
+                    }
+                    else if (stored.ResolutionSource == ResolutionSource.UnresolvedByUser)
+                    {
+                        deadlineSpec = new DeadlineSpec(
+                            deadlineSpec.Kind, rawText,
+                            null, null, null, null, true, "UserMarkedUnresolved",
+                            deadlineSpec.AmbiguousCandidates);
+                        resolutionSource = stored.ResolutionSource;
+                    }
+                    // KeepExcelDate / UseSwappedDate already match what the parser
+                    // produces for their respective candidates; the version below
+                    // still records the source so the version differs correctly.
+                    else
+                    {
+                        resolutionSource = stored.ResolutionSource;
+                    }
+                }
+
+                // Deadline version based on resolved spec + source
                 var deadlineVersion = _identityService.GenerateDeadlineVersion(
                     deadlineSpec.Kind,
                     deadlineSpec.StartDate,
                     deadlineSpec.EndDate,
                     deadlineSpec.TimeOfDay,
-                    ResolutionSource.Parser);
+                    resolutionSource);
 
                 // Calculate status
                 var isCompleted = _statusCalculator.IsCompleted(raw.Result);
@@ -129,7 +169,7 @@ public class ImportWorkbookUseCase
                     TaskContent = raw.TaskContent,
                     ExecutingUnit = raw.ExecutingUnit,
                     PrimaryHandler = raw.PrimaryHandler,
-                    DeadlineRaw = raw.DeadlineCell?.TextValue,
+                    DeadlineRaw = rawText,
                     Progress = raw.Progress,
                     Result = raw.Result,
                     Note = raw.Note,

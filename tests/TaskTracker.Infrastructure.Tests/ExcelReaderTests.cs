@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using ClosedXML.Excel;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 using TaskTracker.Infrastructure.Excel;
 using Xunit;
 
@@ -82,11 +83,11 @@ public class ExcelReaderTests
         Assert.Equal("123/CV-ABC", row5.DocumentNumber);
         Assert.Equal("Fix bug login", row5.TaskContent);
         Assert.Equal("29/07/2026", row5.DeadlineCell?.TextValue);
-        Assert.Equal(XLDataType.Text, row5.DeadlineCell?.DataType);
+        Assert.Equal("Text", row5.DeadlineCell?.CellKind);
         Assert.Equal("Đã hoàn thành", row5.Result);
 
         var row6 = rows.First(r => r.SourceRowNumber == 6);
-        Assert.Equal(XLDataType.DateTime, row6.DeadlineCell?.DataType); // ClosedXML might map DateTime to DateTime DataType, or Number depending on version. Let's check if it's DateTime/Number.
+        Assert.Equal("DateTime", row6.DeadlineCell?.CellKind);
         Assert.True(row6.DeadlineCell?.NumericValue.HasValue);
 
         var row8 = rows.First(r => r.SourceRowNumber == 8);

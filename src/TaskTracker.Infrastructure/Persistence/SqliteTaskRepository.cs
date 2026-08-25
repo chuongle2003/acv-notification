@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using Dapper;
+using TaskTracker.Application;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 
 namespace TaskTracker.Infrastructure.Persistence;
 
-public class SqliteTaskRepository
+public class SqliteTaskRepository : ITaskRowStore
 {
     private readonly IDbConnectionFactory _connectionFactory;
 
@@ -74,6 +76,44 @@ public class SqliteTaskRepository
 
                 connection.Execute(sql, parameters, transaction);
             }
+
+            transaction.Commit();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
+        }
+    }
+
+    public void UpdateDeadlineForCorrection(string sourceFileId, string logicalRowKey, string newDeadlineVersion,
+        DateOnly? alertDate, bool isCompleted, TaskStatus newStatus, int? daysRemaining, string newSnapshotId)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            connection.Execute(@"
+                UPDATE task_rows
+                SET deadline_version = @NewDeadlineVersion,
+                    current_status = @NewStatusStr,
+                    days_remaining = @DaysRemaining,
+                    is_completed = @IsCompleted,
+                    snapshot_id = @NewSnapshotId
+                WHERE source_file_id = @SourceFileId
+                  AND logical_row_key = @LogicalRowKey
+                  AND is_current = 1
+            ", new
+            {
+                NewDeadlineVersion = newDeadlineVersion,
+                NewStatusStr = newStatus.ToString(),
+                DaysRemaining = daysRemaining,
+                IsCompleted = isCompleted ? 1 : 0,
+                NewSnapshotId = newSnapshotId,
+                SourceFileId = sourceFileId,
+                LogicalRowKey = logicalRowKey
+            }, transaction);
 
             transaction.Commit();
         }

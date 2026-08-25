@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TaskTracker.Application;
 using TaskTracker.Domain;
+using TaskStatus = TaskTracker.Domain.TaskStatus;
 using TaskTracker.Domain.Tests.Fakes;
 using Xunit;
 

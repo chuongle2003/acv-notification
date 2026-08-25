@@ -4,42 +4,19 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using ClosedXML.Excel;
+using TaskTracker.Application;
 using TaskTracker.Domain;
 
 namespace TaskTracker.Infrastructure.Excel;
 
-public class RawExcelCell
+/// <summary>
+/// Adapter mapping ClosedXML-specific cell data onto the Application-layer port.
+/// </summary>
+public class ExcelReader : IExcelWorkbookReader
 {
-    public XLDataType DataType { get; init; }
-    public string? TextValue { get; init; }
-    public double? NumericValue { get; init; }
-    public int FormatId { get; init; }
-    public string FormatCode { get; init; } = "";
-    public string CellAddress { get; init; } = "";
-}
-
-public class ExcelRowDto
-{
-    public string SheetName { get; init; } = "";
-    public int? SheetWeekNumber { get; init; }
-    public int SourceRowNumber { get; init; }
-    public string? Stt { get; init; }
-    public string? DocumentNumber { get; init; }
-    public string? TaskContent { get; init; }
-    public string? ExecutingUnit { get; init; }
-    public string? PrimaryHandler { get; init; }
-    public RawExcelCell? DeadlineCell { get; init; }
-    public string? Progress { get; init; }
-    public string? Result { get; init; }
-    public string? Note { get; init; }
-    public ExcelDateSystem DateSystem { get; init; }
-}
-
-public class ExcelReader
-{
-    public IReadOnlyList<ExcelRowDto> ReadWorkbook(Stream stream)
+    public IReadOnlyList<ExcelRowData> ReadWorkbook(Stream stream)
     {
-        var rows = new List<ExcelRowDto>();
+        var rows = new List<ExcelRowData>();
         using var workbook = new XLWorkbook(stream);
 
         var dateSystem = workbook.ReferenceStyle == XLReferenceStyle.R1C1
@@ -91,23 +68,27 @@ public class ExcelReader
                 }
 
                 // Read deadline cell specifically
-                RawExcelCell? deadlineCell = null;
+                RawDeadlineCellData? deadlineCell = null;
                 if (colMap.TryGetValue("Thời hạn", out var dlCol))
                 {
                     var cell = row.Cell(dlCol);
-                    deadlineCell = new RawExcelCell
+                    double? numeric = cell.DataType switch
                     {
-                        DataType = cell.DataType,
-                        TextValue = cell.GetString(),
-                        NumericValue = cell.DataType == XLDataType.Number || cell.DataType == XLDataType.DateTime
-                                       ? cell.GetDouble() : null,
-                        FormatId = cell.Style.NumberFormat.NumberFormatId,
-                        FormatCode = cell.Style.NumberFormat.Format ?? "",
-                        CellAddress = cell.Address.ToStringRelative()
+                        XLDataType.Number => cell.GetDouble(),
+                        XLDataType.DateTime => ToExcelSerial(cell.GetDateTime()),
+                        _ => null
                     };
+                    deadlineCell = new RawDeadlineCellData(
+                        cell.DataType.ToString(),
+                        cell.GetString(),
+                        numeric,
+                        cell.Style.NumberFormat.NumberFormatId,
+                        cell.Style.NumberFormat.Format ?? "",
+                        cell.Address.ToStringRelative()
+                    );
                 }
 
-                rows.Add(new ExcelRowDto
+                rows.Add(new ExcelRowData
                 {
                     SheetName = sheetName,
                     SheetWeekNumber = weekNumber,
@@ -129,8 +110,14 @@ public class ExcelReader
         return rows;
     }
 
-    private int? ExtractWeekNumber(string sheetName)
+    /// <summary>Converts a DateTime to the Excel 1900-system serial number.</summary>
+    private static double ToExcelSerial(DateTime value)
     {
+        var serial = value.ToOADate();
+        return serial;
+    }
+
+    private int? ExtractWeekNumber(string sheetName)    {
         var match = Regex.Match(sheetName.Normalize(System.Text.NormalizationForm.FormC), @"(?i)tuan\s+(\d+)");
         if (match.Success && int.TryParse(match.Groups[1].Value, out int w))
             return w;
