@@ -9,6 +9,7 @@ public class FileWatcherService : IDisposable
 {
     private readonly FileSystemWatcher _watcher;
     private readonly TimeSpan _debounceDelay;
+    private readonly object _debounceLock = new();
 
     private CancellationTokenSource? _debounceCts;
     private string? _watchedFilePath;
@@ -53,9 +54,12 @@ public class FileWatcherService : IDisposable
     public void StopWatching()
     {
         _watcher.EnableRaisingEvents = false;
-        _debounceCts?.Cancel();
-        _debounceCts?.Dispose();
-        _debounceCts = null;
+        lock (_debounceLock)
+        {
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = null;
+        }
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
@@ -63,19 +67,36 @@ public class FileWatcherService : IDisposable
         if (_watchedFilePath == null || !string.Equals(e.FullPath, _watchedFilePath, StringComparison.OrdinalIgnoreCase))
             return;
 
-        // Debounce logic
-        _debounceCts?.Cancel();
-        _debounceCts?.Dispose();
-        _debounceCts = new CancellationTokenSource();
-        var token = _debounceCts.Token;
-
-        Task.Delay(_debounceDelay, token).ContinueWith(t =>
+        CancellationTokenSource debounceCts;
+        lock (_debounceLock)
         {
-            if (!t.IsCanceled)
-            {
-                FileChanged?.Invoke(this, _watchedFilePath);
-            }
-        }, TaskScheduler.Default);
+            _debounceCts?.Cancel();
+            _debounceCts?.Dispose();
+            _debounceCts = new CancellationTokenSource();
+            debounceCts = _debounceCts;
+        }
+
+        _ = RaiseChangedAfterDebounceAsync(debounceCts);
+    }
+
+    private async Task RaiseChangedAfterDebounceAsync(CancellationTokenSource debounceCts)
+    {
+        try
+        {
+            await Task.Delay(_debounceDelay, debounceCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        lock (_debounceLock)
+        {
+            if (!ReferenceEquals(_debounceCts, debounceCts) || debounceCts.IsCancellationRequested)
+                return;
+
+            FileChanged?.Invoke(this, _watchedFilePath!);
+        }
     }
 
     private void OnRenamed(object sender, RenamedEventArgs e)
