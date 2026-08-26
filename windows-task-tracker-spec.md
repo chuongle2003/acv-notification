@@ -302,6 +302,8 @@ TaskTracker.sln
 │   │   ├── RefreshSourceFileUseCase.cs
 │   │   ├── EvaluateAlertsUseCase.cs
 │   │   └── Ports/
+│   ├── TaskTracker.Presentation/
+│   │   └── TaskListPresentation.cs
 │   ├── TaskTracker.Infrastructure/
 │   │   ├── Excel/
 │   │   ├── Persistence/
@@ -329,7 +331,7 @@ TaskTracker.sln
 
 ### 7.3. Ranh giới nền tảng
 
-`Domain`, `Application` và phần lớn `Infrastructure` không được tham chiếu WPF hoặc Windows APIs.
+`Domain`, `Application`, `Presentation` và phần lớn `Infrastructure` không được tham chiếu WPF hoặc Windows APIs.
 
 Chỉ project `TaskTracker.Windows` được phép chứa:
 
@@ -882,23 +884,21 @@ Filter:
 - Trạng thái.
 - Chỉ hiện chưa xem.
 - Tìm kiếm công văn/nội dung.
+- Mỗi combobox có lựa chọn `Tất cả`.
+- Nút `Xóa bộ lọc` xóa đồng thời tìm kiếm, ba combobox và `Chỉ hiện chưa xem`.
 
 ### 15.2. DataGrid
 
 Cột mặc định:
 
 1. Đã xem.
-2. Trạng thái.
-3. Sheet.
-4. STT.
-5. Số công văn.
-6. Nội dung nhiệm vụ.
-7. Xử lý chính.
-8. Thời hạn gốc.
-9. Ngày cảnh báo đã resolve.
-10. Còn lại.
-11. Kết quả.
-12. Dòng nguồn.
+2. Số công văn.
+3. Nội dung nhiệm vụ.
+4. Xử lý chính.
+5. Thời hạn đã resolve, định dạng `dd/MM/yyyy`.
+6. Còn lại.
+
+Trạng thái, Sheet, STT, kết quả, thời hạn gốc, nguồn correction và dòng/ô nguồn được hiển thị trong detail panel thay vì chiếm cột mặc định.
 
 Sorting mặc định:
 
@@ -927,6 +927,7 @@ Hiển thị:
 - Kiểu dữ liệu Excel.
 - Deadline parser result.
 - Correction đang áp dụng.
+- Trạng thái và nguồn correction bằng nhãn tiếng Việt.
 - Lịch sử notification/acknowledgment.
 
 Actions:
@@ -952,6 +953,15 @@ Mỗi item hiển thị:
 - Giá trị gốc.
 - Các ứng viên.
 - Lý do nghi vấn.
+
+Actions:
+
+- `Giữ ngày Excel` chỉ bật khi có ứng viên ngày Excel hợp lệ.
+- `Đảo ngày/tháng` chỉ bật khi có ứng viên ngày đảo hợp lệ.
+- `Nhập ngày` nhận đúng định dạng `dd/MM/yyyy`.
+- `Chưa xác định` giữ item ở trạng thái cần rà soát và không phát cảnh báo.
+
+Màn hình phải nói rõ Excel chỉ được đọc. Mọi lựa chọn được lưu trong SQLite cục bộ theo `logical_row_key + raw_deadline_fingerprint`; nếu giá trị thời hạn gốc đổi thì correction cũ ngừng áp dụng.
 
 ## 16. Tray và application lifecycle
 

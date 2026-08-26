@@ -11,6 +11,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Application;
 using TaskTracker.Domain;
+using TaskTracker.Presentation;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -39,6 +40,8 @@ public partial class DeadlineReviewItemViewModel : ObservableObject
     public string ExcelCandidateLabel => ExcelCandidate?.ToString("dd/MM/yyyy") ?? "—";
     public string SwappedCandidateLabel =>
         SwappedCandidate.HasValue ? SwappedCandidate.Value.ToString("dd/MM/yyyy") : "—";
+    public bool CanKeepExcelDate => DeadlineReviewActionAvailability.CanKeepExcelDate(ExcelCandidate);
+    public bool CanUseSwappedDate => DeadlineReviewActionAvailability.CanUseSwappedDate(SwappedCandidate);
 
     public DeadlineReviewItemViewModel(TaskRow row, DeadlineParserKind kind,
         DateOnly? excelCandidate, DateOnly? swappedCandidate, string problemLabel)

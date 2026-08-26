@@ -11,11 +11,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Infrastructure"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Windows", "src\TaskTracker.Windows\TaskTracker.Windows.csproj", "{9AC2A2B2-9694-4F93-8751-24EE4F6B9B3C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Presentation", "src\TaskTracker.Presentation\TaskTracker.Presentation.csproj", "{6F3829F6-7912-4A7D-B101-E31A507EB26D}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Domain.Tests", "tests\TaskTracker.Domain.Tests\TaskTracker.Domain.Tests.csproj", "{1D0C4A19-9C5F-4E38-B549-F6A7B2C5B3E1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Application.Tests", "tests\TaskTracker.Application.Tests\TaskTracker.Application.Tests.csproj", "{8F6A3D1E-6C7A-4D9A-B561-D5A8C9B9C7F2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Infrastructure.Tests", "tests\TaskTracker.Infrastructure.Tests\TaskTracker.Infrastructure.Tests.csproj", "{E8D7B5C3-7F1E-4E9A-B4C2-F5D4B6A2C1F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskTracker.Windows.Tests", "tests\TaskTracker.Windows.Tests\TaskTracker.Windows.Tests.csproj", "{B742E2F9-73E8-4C69-9EB0-29771D2E6AB5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +43,10 @@ Global
 		{9AC2A2B2-9694-4F93-8751-24EE4F6B9B3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9AC2A2B2-9694-4F93-8751-24EE4F6B9B3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9AC2A2B2-9694-4F93-8751-24EE4F6B9B3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F3829F6-7912-4A7D-B101-E31A507EB26D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F3829F6-7912-4A7D-B101-E31A507EB26D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F3829F6-7912-4A7D-B101-E31A507EB26D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F3829F6-7912-4A7D-B101-E31A507EB26D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{1D0C4A19-9C5F-4E38-B549-F6A7B2C5B3E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{1D0C4A19-9C5F-4E38-B549-F6A7B2C5B3E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1D0C4A19-9C5F-4E38-B549-F6A7B2C5B3E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -51,6 +59,10 @@ Global
 		{E8D7B5C3-7F1E-4E9A-B4C2-F5D4B6A2C1F0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E8D7B5C3-7F1E-4E9A-B4C2-F5D4B6A2C1F0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E8D7B5C3-7F1E-4E9A-B4C2-F5D4B6A2C1F0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B742E2F9-73E8-4C69-9EB0-29771D2E6AB5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B742E2F9-73E8-4C69-9EB0-29771D2E6AB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B742E2F9-73E8-4C69-9EB0-29771D2E6AB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B742E2F9-73E8-4C69-9EB0-29771D2E6AB5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -94,19 +94,26 @@
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Tìm kiếm:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Width="250" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="4" VerticalAlignment="Center"/>
+                <TextBox Width="250" Text="{Binding Filters.SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="4" VerticalAlignment="Center"/>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
                 <TextBlock Text="Sheet:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                <ComboBox Width="110" ItemsSource="{Binding SheetOptions}" SelectedItem="{Binding SelectedSheet}"/>
+                <ComboBox Width="110" ItemsSource="{Binding SheetOptions}"
+                          DisplayMemberPath="Label"
+                          SelectedItem="{Binding SelectedSheetOption}"/>
                 <TextBlock Text="Xử lý:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                <ComboBox Width="130" ItemsSource="{Binding HandlerOptions}" SelectedItem="{Binding SelectedHandler}"/>
+                <ComboBox Width="130" ItemsSource="{Binding HandlerOptions}"
+                          DisplayMemberPath="Label"
+                          SelectedItem="{Binding SelectedHandlerOption}"/>
                 <TextBlock Text="Trạng thái:" VerticalAlignment="Center" Margin="12,0,4,0"/>
-                <ComboBox Width="120" ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding SelectedStatus}"/>
+                <ComboBox Width="135" ItemsSource="{Binding StatusOptions}"
+                          DisplayMemberPath="Label"
+                          SelectedItem="{Binding SelectedStatusOption}"/>
+                <Button Content="Xóa bộ lọc" Command="{Binding ClearFiltersCommand}" Padding="10,4" Margin="12,0,0,0"/>
             </StackPanel>
 
-            <CheckBox Grid.Column="2" Content="Chỉ hiện chưa xem" IsChecked="{Binding ShowUnreadOnly}" VerticalAlignment="Center"/>
+            <CheckBox Grid.Column="2" Content="Chỉ hiện chưa xem" IsChecked="{Binding Filters.ShowUnreadOnly}" VerticalAlignment="Center"/>
         </Grid>
 
         <!-- Main Content: Tabs for Task list and Deadline review -->
@@ -134,17 +141,11 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Mức độ" Binding="{Binding CurrentStatus}" />
-                            <DataGridTextColumn Header="Sheet" Binding="{Binding SheetName}" />
-                            <DataGridTextColumn Header="STT" Binding="{Binding Stt}" />
                             <DataGridTextColumn Header="Số CV" Binding="{Binding DocumentNumber}" Width="120" />
                             <DataGridTextColumn Header="Nội dung" Binding="{Binding TaskContent}" Width="*" />
-                            <DataGridTextColumn Header="Xử lý chính" Binding="{Binding PrimaryHandler}" />
-                            <DataGridTextColumn Header="Thời hạn gốc" Binding="{Binding DeadlineRaw}" />
-                            <DataGridTextColumn Header="Ngày đã resolve" Binding="{Binding ResolvedStartDate}" />
-                            <DataGridTextColumn Header="Còn lại (ngày)" Binding="{Binding DaysRemaining}" />
-                            <DataGridTextColumn Header="Kết quả" Binding="{Binding Result}" />
-                            <DataGridTextColumn Header="Dòng" Binding="{Binding SourceRowNumber}" Width="60" />
+                            <DataGridTextColumn Header="Xử lý chính" Binding="{Binding PrimaryHandler}" Width="150" />
+                            <DataGridTextColumn Header="Thời hạn" Binding="{Binding ResolvedStartDate, StringFormat={}{0:dd/MM/yyyy}}" Width="100" />
+                            <DataGridTextColumn Header="Còn lại" Binding="{Binding DaysRemaining}" Width="75" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -163,19 +164,33 @@
                                 <TextBlock Text="Đơn vị / Xử lý chính:" FontSize="12" Foreground="Gray"/>
                                 <TextBlock Text="{Binding SelectedTask.PrimaryHandler}" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
+                                <TextBlock Text="STT:" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Text="{Binding SelectedTask.Stt}" Margin="0,0,0,8"/>
+
                                 <TextBlock Text="Sheet nguồn:" FontSize="12" Foreground="Gray"/>
-                                <TextBlock Text="{Binding SelectedTask.SheetName}" Margin="0,0,0,16"/>
+                                <TextBlock Text="{Binding SelectedTask.SheetName}" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="Kết quả:" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Text="{Binding SelectedTask.Result}" TextWrapping="Wrap" Margin="0,0,0,16"/>
 
                                 <Separator Margin="0,0,0,16"/>
 
                                 <TextBlock Text="Trạng thái cảnh báo:" FontSize="12" Foreground="Gray"/>
-                                <TextBlock Text="{Binding SelectedTask.CurrentStatus}" FontWeight="SemiBold" Foreground="#B91C1C" Margin="0,0,0,8"/>
+                                <TextBlock Text="{Binding SelectedTask.CurrentStatusLabel}" FontWeight="SemiBold" Foreground="#B91C1C" Margin="0,0,0,8"/>
 
                                 <TextBlock Text="Thời hạn gốc:" FontSize="12" Foreground="Gray"/>
                                 <TextBlock Text="{Binding SelectedTask.DeadlineRaw}" Margin="0,0,0,8"/>
 
+                                <TextBlock Text="Ngày đang áp dụng:" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Text="{Binding SelectedTask.ResolvedStartDate, StringFormat={}{0:dd/MM/yyyy}}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="Nguồn xác nhận:" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Text="{Binding SelectedTask.ResolutionSourceLabel}" Margin="0,0,0,8"/>
+
                                 <TextBlock Text="Ô nguồn:" FontSize="12" Foreground="Gray"/>
-                                <TextBlock Text="{Binding SelectedTask.DeadlineCellAddress}" Margin="0,0,0,8"/>
+                                <TextBlock Margin="0,0,0,8">
+                                    <Run Text="Dòng "/><Run Text="{Binding SelectedTask.SourceRowNumber}"/><Run Text=", ô "/><Run Text="{Binding SelectedTask.DeadlineCellAddress}"/>
+                                </TextBlock>
 
                                 <Button Content="Đã xem" Command="{Binding SelectedTask.AcknowledgeCommand}"
                                         Padding="8" Margin="0,16,0,0" Background="#2563EB" Foreground="White" BorderThickness="0"/>

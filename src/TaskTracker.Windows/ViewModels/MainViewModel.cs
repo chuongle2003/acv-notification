@@ -13,6 +13,7 @@ using CommunityToolkit.Mvvm.Input;
 using TaskTracker.Application;
 using TaskTracker.Domain;
 using TaskTracker.Infrastructure.Persistence;
+using TaskTracker.Presentation;
 using TaskStatus = TaskTracker.Domain.TaskStatus;
 
 namespace TaskTracker.Windows.ViewModels;
@@ -39,6 +40,8 @@ public partial class TaskItemViewModel : ObservableObject
     public string? DeadlineCellAddress => Row.DeadlineCellAddress;
     public string? Result => Row.Result;
     public TaskStatus CurrentStatus => Row.CurrentStatus;
+    public string CurrentStatusLabel => TaskStatusDisplay.GetLabel(Row.CurrentStatus);
+    public string ResolutionSourceLabel => ResolutionSourceDisplay.GetLabel(Row.ResolutionSource);
     public bool CanAcknowledge => CurrentStatus is TaskStatus.DueSoon or TaskStatus.DueToday or TaskStatus.Overdue;
     public DateOnly? ResolvedStartDate => Row.ResolvedStartDate;
     public int? DaysRemaining => Row.DaysRemaining;
@@ -76,20 +79,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private int _completedCount;
     [ObservableProperty] private int _needsReviewCount;
     [ObservableProperty] private bool _isLoading;
-    [ObservableProperty] private string _searchText = "";
-    [ObservableProperty] private bool _showUnreadOnly;
-    [ObservableProperty] private string? _selectedSheet;
-    [ObservableProperty] private string? _selectedHandler;
-    [ObservableProperty] private TaskStatus? _selectedStatus;
     [ObservableProperty] private TaskItemViewModel? _selectedTask;
+    [ObservableProperty] private TextFilterOption? _selectedSheetOption;
+    [ObservableProperty] private TextFilterOption? _selectedHandlerOption;
+    [ObservableProperty] private StatusFilterOption? _selectedStatusOption;
 
+    public TaskFilterState Filters { get; } = new();
     public ObservableCollection<TaskItemViewModel> Tasks { get; } = new();
-    public ObservableCollection<string> SheetOptions { get; } = new();
-    public ObservableCollection<string> HandlerOptions { get; } = new();
-    public IReadOnlyList<TaskStatus?> StatusOptions { get; } = new TaskStatus?[]
+    public ObservableCollection<TextFilterOption> SheetOptions { get; } = new();
+    public ObservableCollection<TextFilterOption> HandlerOptions { get; } = new();
+    public IReadOnlyList<StatusFilterOption> StatusOptions { get; } = new[]
     {
-        null, TaskStatus.Overdue, TaskStatus.DueToday, TaskStatus.DueSoon,
-        TaskStatus.NeedsReview, TaskStatus.Normal, TaskStatus.Completed
+        new StatusFilterOption("Tất cả", TaskStatus.Unknown),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.Overdue), TaskStatus.Overdue),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.DueToday), TaskStatus.DueToday),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.DueSoon), TaskStatus.DueSoon),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.NeedsReview), TaskStatus.NeedsReview),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.Normal), TaskStatus.Normal),
+        new StatusFilterOption(TaskStatusDisplay.GetLabel(TaskStatus.Completed), TaskStatus.Completed)
     };
 
     private readonly ICollectionView _tasksView;
@@ -114,31 +121,45 @@ public partial class MainViewModel : ObservableObject
 
         _tasksView = CollectionViewSource.GetDefaultView(Tasks);
         _tasksView.Filter = FilterTask;
+        Filters.PropertyChanged += (_, _) =>
+        {
+            _tasksView.Refresh();
+            ClearFiltersCommand.NotifyCanExecuteChanged();
+        };
         if (_tasksView is ListCollectionView listView)
             listView.CustomSort = new TaskSeverityComparer();
 
         var settings = _settingsService.Load();
         if (!string.IsNullOrWhiteSpace(settings.SourceFilePath))
             SourceFileName = Path.GetFileName(settings.SourceFilePath);
+
+        ReplaceOptions(SheetOptions, Array.Empty<string>());
+        ReplaceOptions(HandlerOptions, Array.Empty<string>());
+        SelectedSheetOption = SheetOptions[0];
+        SelectedHandlerOption = HandlerOptions[0];
+        SelectedStatusOption = StatusOptions[0];
     }
 
-    partial void OnSearchTextChanged(string value) => _tasksView.Refresh();
-    partial void OnShowUnreadOnlyChanged(bool value) => _tasksView.Refresh();
-    partial void OnSelectedSheetChanged(string? value) => _tasksView.Refresh();
-    partial void OnSelectedHandlerChanged(string? value) => _tasksView.Refresh();
-    partial void OnSelectedStatusChanged(TaskStatus? value) => _tasksView.Refresh();
+    partial void OnSelectedSheetOptionChanged(TextFilterOption? value) =>
+        Filters.SelectedSheet = value?.Value ?? "";
+
+    partial void OnSelectedHandlerOptionChanged(TextFilterOption? value) =>
+        Filters.SelectedHandler = value?.Value ?? "";
+
+    partial void OnSelectedStatusOptionChanged(StatusFilterOption? value) =>
+        Filters.SelectedStatus = value?.Value ?? TaskStatus.Unknown;
 
     private bool FilterTask(object obj)
     {
         if (obj is not TaskItemViewModel item) return false;
-        if (ShowUnreadOnly && item.IsAcknowledged) return false;
-        if (SelectedSheet != null && item.SheetName != SelectedSheet) return false;
-        if (SelectedHandler != null && item.PrimaryHandler != SelectedHandler) return false;
-        if (SelectedStatus != null && item.CurrentStatus != SelectedStatus) return false;
+        if (Filters.ShowUnreadOnly && item.IsAcknowledged) return false;
+        if (!string.IsNullOrWhiteSpace(Filters.SelectedSheet) && item.SheetName != Filters.SelectedSheet) return false;
+        if (!string.IsNullOrWhiteSpace(Filters.SelectedHandler) && item.PrimaryHandler != Filters.SelectedHandler) return false;
+        if (Filters.SelectedStatus != TaskStatus.Unknown && item.CurrentStatus != Filters.SelectedStatus) return false;
 
-        if (!string.IsNullOrWhiteSpace(SearchText))
+        if (!string.IsNullOrWhiteSpace(Filters.SearchText))
         {
-            var search = SearchText.Trim();
+            var search = Filters.SearchText.Trim();
             if (!(item.DocumentNumber?.Contains(search, StringComparison.OrdinalIgnoreCase) == true ||
                   item.TaskContent?.Contains(search, StringComparison.OrdinalIgnoreCase) == true))
                 return false;
@@ -146,6 +167,17 @@ public partial class MainViewModel : ObservableObject
 
         return true;
     }
+
+    [RelayCommand(CanExecute = nameof(CanClearFilters))]
+    private void ClearFilters()
+    {
+        Filters.Clear();
+        SelectedSheetOption = SheetOptions.FirstOrDefault();
+        SelectedHandlerOption = HandlerOptions.FirstOrDefault();
+        SelectedStatusOption = StatusOptions[0];
+    }
+
+    private bool CanClearFilters() => Filters.HasActiveFilters;
 
     [RelayCommand]
     private async Task RefreshDataAsync(CancellationToken cancellationToken)
@@ -231,15 +263,20 @@ public partial class MainViewModel : ObservableObject
 
     private void RebuildFilterOptions()
     {
+        var selectedSheet = Filters.SelectedSheet;
+        var selectedHandler = Filters.SelectedHandler;
         ReplaceOptions(SheetOptions, Tasks.Select(item => item.SheetName));
         ReplaceOptions(HandlerOptions, Tasks.Select(item => item.PrimaryHandler));
+        SelectedSheetOption = SheetOptions.FirstOrDefault(option => option.Value == selectedSheet) ?? SheetOptions[0];
+        SelectedHandlerOption = HandlerOptions.FirstOrDefault(option => option.Value == selectedHandler) ?? HandlerOptions[0];
     }
 
-    private static void ReplaceOptions(ObservableCollection<string> target, IEnumerable<string?> values)
+    private static void ReplaceOptions(ObservableCollection<TextFilterOption> target, IEnumerable<string?> values)
     {
         target.Clear();
+        target.Add(new TextFilterOption("Tất cả", ""));
         foreach (var value in values.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().Order())
-            target.Add(value!);
+            target.Add(new TextFilterOption(value!, value!));
     }
 
     private void UpdateSummaryCounts()

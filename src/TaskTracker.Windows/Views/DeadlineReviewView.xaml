@@ -8,13 +8,23 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Filter bar -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
-            <TextBlock Text="Loại lỗi:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <ComboBox x:Name="KindFilterCombo" Width="220" Padding="4"
-                      SelectionChanged="KindFilterCombo_SelectionChanged"/>
-            <TextBlock Text="   Tổng cần rà soát:" VerticalAlignment="Center" Margin="16,0,8,0"/>
-            <TextBlock Text="{Binding TotalPending}" FontWeight="Bold" VerticalAlignment="Center"/>
+        <!-- Explanation and filter bar -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <Border Background="#EFF6FF" BorderBrush="#93C5FD" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="Ứng dụng chỉ đọc file Excel. Mọi xác nhận ngày chỉ được lưu cục bộ trên máy này và không sửa dữ liệu Excel."
+                               Foreground="#1E3A8A" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Text="Nếu ngày bị đảo, hãy chọn ngày Excel hoặc ngày đảo. Nếu chưa xác định được, nhập ngày theo định dạng dd/MM/yyyy để app tính hạn và thông báo."
+                               Foreground="#1E40AF" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Loại lỗi:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="KindFilterCombo" Width="220" Padding="4"
+                          SelectionChanged="KindFilterCombo_SelectionChanged"/>
+                <TextBlock Text="Tổng cần rà soát:" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                <TextBlock Text="{Binding TotalPending}" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
         </StackPanel>
 
         <!-- Review grid -->
@@ -31,20 +41,24 @@
                 <DataGridTextColumn Header="Loại lỗi" Binding="{Binding ProblemLabel}" Width="150"/>
                 <DataGridTextColumn Header="Gốc (Excel)" Binding="{Binding ExcelCandidateLabel}" Width="100"/>
                 <DataGridTextColumn Header="Đảo" Binding="{Binding SwappedCandidateLabel}" Width="100"/>
-                <DataGridTemplateColumn Header="Hành động" Width="290">
+                <DataGridTemplateColumn Header="Hành động" Width="390">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" Margin="2">
-                                <Button Content="Giữ gốc" Padding="6,2" Margin="0,0,4,0"
+                                <Button Content="Giữ ngày Excel" Padding="6,2" Margin="0,0,4,0"
+                                        IsEnabled="{Binding CanKeepExcelDate}"
+                                        ToolTip="Dùng ngày mà Excel đang lưu"
                                         Command="{Binding DataContext.KeepCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                         CommandParameter="{Binding}"/>
-                                <Button Content="Đảo ngày" Padding="6,2" Margin="0,0,4,0"
+                                <Button Content="Đảo ngày/tháng" Padding="6,2" Margin="0,0,4,0"
+                                        IsEnabled="{Binding CanUseSwappedDate}"
+                                        ToolTip="Dùng ngày sau khi đổi vị trí ngày và tháng"
                                         Command="{Binding DataContext.SwapCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                         CommandParameter="{Binding}"/>
-                                <Button Content="Nhập tay..." Padding="6,2" Margin="0,0,4,0"
+                                <Button Content="Nhập ngày..." Padding="6,2" Margin="0,0,4,0"
                                         Command="{Binding DataContext.ManualCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                         CommandParameter="{Binding}"/>
-                                <Button Content="Bỏ qua" Padding="6,2"
+                                <Button Content="Chưa xác định" Padding="6,2"
                                         Command="{Binding DataContext.UnresolvedCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                         CommandParameter="{Binding}"/>
                             </StackPanel>

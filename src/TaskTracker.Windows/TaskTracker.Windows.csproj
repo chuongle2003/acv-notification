@@ -20,5 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TaskTracker.Infrastructure\TaskTracker.Infrastructure.csproj" />
+    <ProjectReference Include="..\TaskTracker.Presentation\TaskTracker.Presentation.csproj" />
   </ItemGroup>
 </Project>
