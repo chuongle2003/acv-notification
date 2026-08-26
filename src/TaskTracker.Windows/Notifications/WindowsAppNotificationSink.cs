@@ -10,13 +10,6 @@ using TaskTracker.Domain;
 
 namespace TaskTracker.Windows.Notifications;
 
-public record NotificationActivation(
-    string Action,
-    string? SourceFileId,
-    string? LogicalRowKey,
-    string? DeadlineVersion,
-    AlertGroup? AlertGroup);
-
 public sealed class WindowsAppNotificationSink : IAppNotificationSink, IDisposable
 {
     private bool _registered;
@@ -96,22 +89,7 @@ public sealed class WindowsAppNotificationSink : IAppNotificationSink, IDisposab
 
     private void OnNotificationInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args)
     {
-        Activated?.Invoke(this, ParseActivation(args.Argument));
-    }
-
-    public static NotificationActivation ParseActivation(string argument)
-    {
-        var values = ParseArguments(argument);
-        values.TryGetValue("action", out var action);
-        values.TryGetValue("sourceFileId", out var sourceFileId);
-        values.TryGetValue("logicalRowKey", out var logicalRowKey);
-        values.TryGetValue("deadlineVersion", out var deadlineVersion);
-        values.TryGetValue("alertGroup", out var alertGroupText);
-
-        AlertGroup? group = Enum.TryParse<AlertGroup>(alertGroupText, out var parsedGroup)
-            ? parsedGroup : null;
-        return new NotificationActivation(
-            action ?? "open-list", sourceFileId, logicalRowKey, deadlineVersion, group);
+        Activated?.Invoke(this, NotificationActivationParser.Parse(args.Argument));
     }
 
     private static AppNotificationBuilder AddTaskArguments(
@@ -135,18 +113,6 @@ public sealed class WindowsAppNotificationSink : IAppNotificationSink, IDisposab
             .AddArgument("logicalRowKey", task.LogicalRowKey)
             .AddArgument("deadlineVersion", task.DeadlineVersion ?? "")
             .AddArgument("alertGroup", group.ToString());
-
-    private static IReadOnlyDictionary<string, string> ParseArguments(string argument)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var segment in argument.Split(new[] { '&', ';' }, StringSplitOptions.RemoveEmptyEntries))
-        {
-            var pair = segment.Split('=', 2);
-            if (pair.Length == 2)
-                result[Uri.UnescapeDataString(pair[0])] = Uri.UnescapeDataString(pair[1]);
-        }
-        return result;
-    }
 
     public void Dispose()
     {

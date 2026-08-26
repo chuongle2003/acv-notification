@@ -19,9 +19,8 @@ Bật Docker daemon, sau đó chạy:
 ```
 
 Script dùng `compose.yaml` để restore, chạy toàn bộ test cross-platform, rồi
-compile code/XAML WPF và test project Windows. Gate Linux không thể chạy
-Windows testhost và tắt PRI generation vì `MakePri.exe` chỉ chạy trên Windows;
-self-contained publish được tạo trong Windows gate/CI.
+compile code/XAML WPF. Gate Linux tắt PRI generation vì `MakePri.exe` chỉ chạy
+trên Windows; self-contained publish được tạo trong Windows gate/CI.
 
 Có thể chạy trực tiếp khi máy đã cài .NET 10 SDK:
 

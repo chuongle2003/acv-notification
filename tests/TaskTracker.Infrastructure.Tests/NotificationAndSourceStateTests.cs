@@ -17,7 +17,8 @@ public sealed class NotificationAndSourceStateTests : IDisposable
 
     public NotificationAndSourceStateTests()
     {
-        _factory = new SqliteConnectionFactory($"Data Source={_dbPath};Mode=ReadWriteCreate");
+        _factory = new SqliteConnectionFactory(
+            $"Data Source={_dbPath};Mode=ReadWriteCreate;Pooling=False");
         new DatabaseMigrator(_factory).MigrateUp();
     }
 

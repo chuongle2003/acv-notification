@@ -1,17 +1,17 @@
+using TaskTracker.Application;
 using TaskTracker.Domain;
-using TaskTracker.Windows.Notifications;
 using Xunit;
 
-namespace TaskTracker.Windows.Tests;
+namespace TaskTracker.Application.Tests;
 
-public class NotificationArgumentTests
+public class NotificationActivationParserTests
 {
     [Theory]
     [InlineData("action=ack&sourceFileId=f1&logicalRowKey=k1&deadlineVersion=v1&alertGroup=Overdue")]
     [InlineData("action=ack;sourceFileId=f1;logicalRowKey=k1;deadlineVersion=v1;alertGroup=Overdue")]
-    public void ParseActivation_HandlesSupportedSeparators(string arguments)
+    public void Parse_HandlesSupportedSeparators(string arguments)
     {
-        var activation = WindowsAppNotificationSink.ParseActivation(arguments);
+        var activation = NotificationActivationParser.Parse(arguments);
 
         Assert.Equal("ack", activation.Action);
         Assert.Equal("f1", activation.SourceFileId);

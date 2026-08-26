@@ -15,7 +15,3 @@ dotnet test tests/TaskTracker.Infrastructure.Tests/TaskTracker.Infrastructure.Te
 dotnet build src/TaskTracker.Windows/TaskTracker.Windows.csproj \
   --configuration "$configuration" --no-restore \
   -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false
-
-dotnet build tests/TaskTracker.Windows.Tests/TaskTracker.Windows.Tests.csproj \
-  --configuration "$configuration" --no-restore \
-  -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false
