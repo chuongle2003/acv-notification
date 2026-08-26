@@ -19,16 +19,9 @@ public class ExcelReader : IExcelWorkbookReader
         var rows = new List<ExcelRowData>();
         using var workbook = new XLWorkbook(stream);
 
-        var dateSystem = workbook.ReferenceStyle == XLReferenceStyle.R1C1
-            ? ExcelDateSystem.Windows1900 // Just fallback for now, ClosedXML doesn't expose 1904 easily in all versions, wait actually it's workbook.Use1904DateSystem if exists
+        var dateSystem = workbook.Use1904DateSystem
+            ? ExcelDateSystem.Mac1904
             : ExcelDateSystem.Windows1900;
-
-        // Actually ClosedXML exposes Date1904 property
-        if (workbook.Properties != null)
-        {
-             // CloseXML might have workbook.CalculateMode, but for 1904:
-             // It's usually accessible but if not, fallback to 1900
-        }
 
         foreach (var sheet in workbook.Worksheets)
         {
@@ -75,7 +68,7 @@ public class ExcelReader : IExcelWorkbookReader
                     double? numeric = cell.DataType switch
                     {
                         XLDataType.Number => cell.GetDouble(),
-                        XLDataType.DateTime => ToExcelSerial(cell.GetDateTime()),
+                        XLDataType.DateTime => ToExcelSerial(cell.GetDateTime(), dateSystem),
                         _ => null
                     };
                     deadlineCell = new RawDeadlineCellData(
@@ -102,7 +95,7 @@ public class ExcelReader : IExcelWorkbookReader
                     Progress = GetString(row, colMap, "Tiến độ"),
                     Result = GetString(row, colMap, "Kết quả"),
                     Note = GetString(row, colMap, "Ghi chú"),
-                    DateSystem = ExcelDateSystem.Windows1900 // Hardcoded for MVP unless we find the flag
+                    DateSystem = dateSystem
                 });
             }
         }
@@ -111,10 +104,10 @@ public class ExcelReader : IExcelWorkbookReader
     }
 
     /// <summary>Converts a DateTime to the Excel 1900-system serial number.</summary>
-    private static double ToExcelSerial(DateTime value)
+    private static double ToExcelSerial(DateTime value, ExcelDateSystem dateSystem)
     {
         var serial = value.ToOADate();
-        return serial;
+        return dateSystem == ExcelDateSystem.Mac1904 ? serial - 1462 : serial;
     }
 
     private int? ExtractWeekNumber(string sheetName)    {

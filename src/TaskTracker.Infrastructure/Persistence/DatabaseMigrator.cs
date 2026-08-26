@@ -124,6 +124,27 @@ public class DatabaseMigrator
                     notification_count INTEGER NOT NULL DEFAULT 0,
                     UNIQUE(logical_row_key, deadline_version, alert_group)
                 );
+            "},
+            { 2, @"
+                ALTER TABLE task_rows ADD COLUMN deadline_cell_kind TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN deadline_format_id INTEGER NULL;
+                ALTER TABLE task_rows ADD COLUMN deadline_format_code TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN deadline_cell_address TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN deadline_kind TEXT NOT NULL DEFAULT 'Unrecognized';
+                ALTER TABLE task_rows ADD COLUMN excel_candidate TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN swapped_candidate TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN resolved_start_date TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN resolved_end_date TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN resolved_time TEXT NULL;
+                ALTER TABLE task_rows ADD COLUMN resolution_source TEXT NOT NULL DEFAULT 'Parser';
+                ALTER TABLE task_rows ADD COLUMN requires_review INTEGER NOT NULL DEFAULT 0;
+
+                CREATE INDEX IF NOT EXISTS ix_task_rows_current
+                    ON task_rows(source_file_id, is_current);
+                CREATE INDEX IF NOT EXISTS ix_notification_states_lookup
+                    ON notification_states(logical_row_key, deadline_version, alert_group);
+                CREATE INDEX IF NOT EXISTS ix_import_snapshots_source
+                    ON import_snapshots(source_file_id, imported_at_utc);
             "}
         };
     }

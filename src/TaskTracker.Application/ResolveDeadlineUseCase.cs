@@ -38,6 +38,7 @@ public interface IResolutionStore
     void Upsert(DeadlineResolution resolution);
     IReadOnlyList<DeadlineResolution> GetAll();
     DeadlineResolution? FindByKey(string logicalRowKey, string rawDeadlineFingerprint);
+    void Delete(string logicalRowKey, string rawDeadlineFingerprint);
 }
 
 public class ResolveDeadlineUseCase
@@ -92,23 +93,23 @@ public class ResolveDeadlineUseCase
             switch (request.Action)
             {
                 case DeadlineReviewAction.KeepExcelDate:
-                    if (spec.StartDate == null)
+                    if (row.ExcelCandidate == null)
                     {
                         return Fail($"Dòng này không có ngày gốc hợp lệ để giữ (raw: '{row.DeadlineRaw}')");
                     }
-                    startDate = spec.StartDate;
-                    endDate = spec.EndDate ?? spec.StartDate;
+                    startDate = row.ExcelCandidate;
+                    endDate = row.ExcelCandidate;
                     source = ResolutionSource.KeepExcelDate;
                     requiresReview = false;
                     break;
 
                 case DeadlineReviewAction.UseSwappedDate:
-                    if (spec.AmbiguousCandidates == null || spec.AmbiguousCandidates.Count < 2)
+                    if (row.SwappedCandidate == null)
                     {
                         return Fail("Dòng này không có ứng viên ngày đảo (chỉ áp dụng cho lỗi nghi ngờ đảo ngày/tháng)");
                     }
-                    startDate = spec.AmbiguousCandidates[1];
-                    endDate = spec.AmbiguousCandidates[1];
+                    startDate = row.SwappedCandidate;
+                    endDate = row.SwappedCandidate;
                     source = ResolutionSource.UseSwappedDate;
                     requiresReview = false;
                     break;
@@ -141,10 +142,10 @@ public class ResolveDeadlineUseCase
             _resolutionRepository.Upsert(new DeadlineResolution(
                 row.LogicalRowKey,
                 fingerprint,
-                spec.Kind,
+                row.DeadlineKind,
                 row.DeadlineRaw,
-                spec.StartDate,
-                spec.AmbiguousCandidates?.Count > 1 ? spec.AmbiguousCandidates[1] : null,
+                row.ExcelCandidate,
+                row.SwappedCandidate,
                 startDate,
                 endDate,
                 request.Action == DeadlineReviewAction.ManualDate ? request.ManualTime : spec.TimeOfDay,
@@ -157,20 +158,36 @@ public class ResolveDeadlineUseCase
             var alertDate = startDate;
             var isCompleted = row.IsCompleted;
             var newVersion = _identityService.GenerateDeadlineVersion(
-                spec.Kind, startDate, endDate,
+                row.DeadlineKind, startDate, endDate,
                 request.Action == DeadlineReviewAction.ManualDate ? request.ManualTime : spec.TimeOfDay,
                 source);
             var newStatus = _statusCalculator.CalculateStatus(isCompleted, requiresReview, alertDate);
             var daysRemaining = _statusCalculator.CalculateDaysRemaining(alertDate);
-            var newSnapshotId = $"correction-{now:yyyyMMddHHmmss}";
+            var newSnapshotId = $"correction-{Guid.NewGuid():N}";
 
-            _taskRepository.UpdateDeadlineForCorrection(
-                request.SourceFileId, row.LogicalRowKey,
-                newVersion, alertDate, isCompleted, newStatus, daysRemaining, newSnapshotId);
+            _taskRepository.UpdateDeadlineForCorrection(request.SourceFileId, row.LogicalRowKey,
+                new DeadlineCorrectionUpdate(
+                    newVersion,
+                    row.DeadlineKind,
+                    row.ExcelCandidate,
+                    row.SwappedCandidate,
+                    startDate,
+                    endDate,
+                    request.Action == DeadlineReviewAction.ManualDate ? request.ManualTime : spec.TimeOfDay,
+                    source,
+                    requiresReview,
+                    newStatus,
+                    daysRemaining,
+                    newSnapshotId));
 
             var updatedRow = row with
             {
                 DeadlineVersion = newVersion,
+                ResolvedStartDate = startDate,
+                ResolvedEndDate = endDate,
+                ResolvedTime = request.Action == DeadlineReviewAction.ManualDate ? request.ManualTime : spec.TimeOfDay,
+                ResolutionSource = source,
+                RequiresReview = requiresReview,
                 CurrentStatus = newStatus,
                 DaysRemaining = daysRemaining,
                 SnapshotId = newSnapshotId
@@ -194,23 +211,96 @@ public class ResolveDeadlineUseCase
         return _resolutionRepository.FindByKey(logicalRowKey, fingerprint);
     }
 
+    public ResolveDeadlineResult Reset(string sourceFileId, string logicalRowKey)
+    {
+        try
+        {
+            var row = _taskRepository.GetCurrentRows(sourceFileId)
+                .FirstOrDefault(r => r.LogicalRowKey == logicalRowKey);
+            if (row == null) return Fail($"Không tìm thấy dòng với key: {logicalRowKey}");
+
+            var fingerprint = _identityService.GenerateRawDeadlineFingerprint(row.DeadlineRaw);
+            _resolutionRepository.Delete(logicalRowKey, fingerprint);
+
+            var spec = BuildOriginalSpec(row);
+            var version = _identityService.GenerateDeadlineVersion(
+                spec.Kind, spec.StartDate, spec.EndDate, spec.TimeOfDay, ResolutionSource.Parser);
+            var status = _statusCalculator.CalculateStatus(row.IsCompleted, spec.RequiresReview, spec.AlertDate);
+            var daysRemaining = _statusCalculator.CalculateDaysRemaining(spec.AlertDate);
+            var snapshotId = $"correction-{Guid.NewGuid():N}";
+
+            _taskRepository.UpdateDeadlineForCorrection(sourceFileId, logicalRowKey,
+                new DeadlineCorrectionUpdate(
+                    version,
+                    spec.Kind,
+                    row.ExcelCandidate,
+                    row.SwappedCandidate,
+                    spec.StartDate,
+                    spec.EndDate,
+                    spec.TimeOfDay,
+                    ResolutionSource.Parser,
+                    spec.RequiresReview,
+                    status,
+                    daysRemaining,
+                    snapshotId));
+
+            return new ResolveDeadlineResult
+            {
+                Success = true,
+                UpdatedRow = row with
+                {
+                    DeadlineVersion = version,
+                    DeadlineKind = spec.Kind,
+                    ResolvedStartDate = spec.StartDate,
+                    ResolvedEndDate = spec.EndDate,
+                    ResolvedTime = spec.TimeOfDay,
+                    ResolutionSource = ResolutionSource.Parser,
+                    RequiresReview = spec.RequiresReview,
+                    CurrentStatus = status,
+                    DaysRemaining = daysRemaining,
+                    SnapshotId = snapshotId
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return Fail(ex.Message);
+        }
+    }
+
     private DeadlineSpec ParseCurrentDeadline(TaskRow row)
     {
-        // Recover the spec from the raw text using the text parser.
-        // Excel numeric dates were already resolved at import time; for the
-        // review flow the raw text representation is what the user saw.
-        var spec = _parser.ParseText(row.DeadlineRaw);
+        return new DeadlineSpec(
+            row.DeadlineKind,
+            row.DeadlineRaw,
+            row.ResolvedStartDate,
+            row.ResolvedEndDate,
+            row.ResolvedTime,
+            row.RequiresReview ? null : row.ResolvedStartDate,
+            row.RequiresReview,
+            row.RequiresReview ? "RequiresReview" : null,
+            new[] { row.ExcelCandidate, row.SwappedCandidate }.OfType<DateOnly>().ToArray());
+    }
 
-        if (spec.Kind == DeadlineParserKind.Unrecognized || spec.Kind == DeadlineParserKind.Invalid)
+    private DeadlineSpec BuildOriginalSpec(TaskRow row)
+    {
+        if (row.DeadlineCellKind is "Number" or "DateTime" && row.ExcelCandidate != null)
         {
-            // The row may have been imported as a numeric Excel date.
-            // Fall back to an unresolved spec so the UI shows manual entry.
+            var ambiguous = row.SwappedCandidate != null;
+            var candidates = new[] { row.ExcelCandidate, row.SwappedCandidate }.OfType<DateOnly>().ToArray();
             return new DeadlineSpec(
-                DeadlineParserKind.Invalid, row.DeadlineRaw,
-                null, null, null, null, true, "CannotReparseRawValue");
+                ambiguous ? DeadlineParserKind.ExcelDateAmbiguous : DeadlineParserKind.ExcelDateConfirmed,
+                row.DeadlineRaw,
+                ambiguous ? null : row.ExcelCandidate,
+                ambiguous ? null : row.ExcelCandidate,
+                null,
+                ambiguous ? null : row.ExcelCandidate,
+                ambiguous,
+                ambiguous ? "AmbiguousDayMonth" : null,
+                candidates);
         }
 
-        return spec;
+        return _parser.ParseText(row.DeadlineRaw);
     }
 
     private static ResolveDeadlineResult Fail(string message) =>

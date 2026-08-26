@@ -12,13 +12,13 @@ namespace TaskTracker.Windows.Lifecycle;
 /// </summary>
 public class TrayIconService : ITrayIcon
 {
-    private readonly AppLifecycleController _controller;
     private System.Windows.Forms.NotifyIcon? _notifyIcon;
+    private System.Windows.Forms.ToolStripMenuItem? _pauseItem;
 
-    public TrayIconService(AppLifecycleController controller)
-    {
-        _controller = controller;
-    }
+    public event EventHandler? OpenRequested;
+    public event EventHandler? RefreshRequested;
+    public event EventHandler? PauseToggleRequested;
+    public event EventHandler? ExitRequested;
 
     public void Show()
     {
@@ -34,17 +34,31 @@ public class TrayIconService : ITrayIcon
         var menu = new System.Windows.Forms.ContextMenuStrip();
 
         var openItem = new System.Windows.Forms.ToolStripMenuItem("Mở");
-        openItem.Click += (_, _) => _controller.Activate();
+        openItem.Click += (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(openItem);
+
+        var refreshItem = new System.Windows.Forms.ToolStripMenuItem("Đọc lại ngay");
+        refreshItem.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
+        menu.Items.Add(refreshItem);
+
+        _pauseItem = new System.Windows.Forms.ToolStripMenuItem("Tạm dừng thông báo");
+        _pauseItem.Click += (_, _) => PauseToggleRequested?.Invoke(this, EventArgs.Empty);
+        menu.Items.Add(_pauseItem);
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
-        var exitItem = new System.Windows.Forms.ToolStripMenuItem("Thoát");
-        exitItem.Click += (_, _) => _controller.RequestExit();
+        var exitItem = new System.Windows.Forms.ToolStripMenuItem("Thoát hẳn");
+        exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         menu.Items.Add(exitItem);
 
         _notifyIcon.ContextMenuStrip = menu;
-        _notifyIcon.DoubleClick += (_, _) => _controller.Activate();
+        _notifyIcon.DoubleClick += (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void UpdatePaused(bool paused)
+    {
+        if (_pauseItem != null)
+            _pauseItem.Text = paused ? "Tiếp tục thông báo" : "Tạm dừng thông báo";
     }
 
     public void UpdateTooltip(string tooltip)

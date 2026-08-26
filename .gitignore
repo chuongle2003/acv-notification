@@ -44,3 +44,8 @@ TestResults/
 *.trx
 *.coverage
 *.coveragexml
+
+# Local reproducible-build caches and publish output
+.cache/
+artifacts/
+.mono/

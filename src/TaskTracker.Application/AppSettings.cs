@@ -8,6 +8,9 @@ namespace TaskTracker.Application;
 /// </summary>
 public class AppSettings
 {
+    /// <summary>Stable identifier for the selected source across app restarts.</summary>
+    public string SourceFileId { get; set; } = "";
+
     /// <summary>Path of the monitored Excel workbook. Empty when unset.</summary>
     public string SourceFilePath { get; set; } = "";
 
@@ -55,6 +58,15 @@ public class SettingsService
     {
         var settings = _store.Load();
 
+        // Preserve rows imported by older builds, which derived the source id
+        // from the normalized path rather than persisting it in settings.
+        if (string.IsNullOrWhiteSpace(settings.SourceFileId) &&
+            !string.IsNullOrWhiteSpace(settings.SourceFilePath))
+        {
+            settings.SourceFileId = CreateLegacySourceFileId(settings.SourceFilePath);
+            _store.Save(settings);
+        }
+
         // Normalize/repair values coming from storage.
         if (settings.RepeatIntervalMinutes <= 0)
         {
@@ -68,5 +80,33 @@ public class SettingsService
     {
         settings.RepeatIntervalMinutes = FixedRepeatIntervalMinutes; // not user-editable in MVP
         _store.Save(settings);
+    }
+
+    public AppSettings SelectSourceFile(string sourceFilePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFilePath);
+
+        var fullPath = System.IO.Path.GetFullPath(sourceFilePath);
+        var settings = Load();
+        var isSameSource = !string.IsNullOrWhiteSpace(settings.SourceFilePath) &&
+            string.Equals(System.IO.Path.GetFullPath(settings.SourceFilePath), fullPath,
+                StringComparison.OrdinalIgnoreCase);
+
+        if (!isSameSource || string.IsNullOrWhiteSpace(settings.SourceFileId))
+        {
+            settings.SourceFileId = Guid.NewGuid().ToString("N");
+        }
+
+        settings.SourceFilePath = fullPath;
+        Save(settings);
+        return settings;
+    }
+
+    private static string CreateLegacySourceFileId(string path)
+    {
+        var normalized = System.IO.Path.GetFullPath(path).ToLowerInvariant();
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(hash)[..32].ToLowerInvariant();
     }
 }

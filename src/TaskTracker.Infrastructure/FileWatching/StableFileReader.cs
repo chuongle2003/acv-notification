@@ -3,25 +3,26 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using TaskTracker.Application;
 
 namespace TaskTracker.Infrastructure.FileWatching;
 
-public class StableFileReader
+public class StableFileReader : IStableFileReader
 {
     private readonly int[] _backoffDelaysMs = { 1000, 2000, 4000, 8000, 15000, 30000 };
 
-    public async Task<StableFileResult> ReadStableFileAsync(string sourcePath, string lastKnownHash, CancellationToken cancellationToken = default)
+    public async Task<StableReadResult> ReadStableFileAsync(string sourcePath, string? lastKnownHash, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(sourcePath))
         {
-            return new StableFileResult { Status = StableFileStatus.FileNotFound };
+            return new StableReadResult(StableReadStatus.FileNotFound);
         }
 
         for (int attempt = 0; attempt <= _backoffDelaysMs.Length; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (IsFileStable(sourcePath))
+            if (await IsFileStableAsync(sourcePath, cancellationToken).ConfigureAwait(false))
             {
                 var tempPath = Path.Combine(Path.GetTempPath(), $"tasktracker_snap_{Guid.NewGuid():N}.xlsx");
 
@@ -38,22 +39,17 @@ public class StableFileReader
                     if (!IsValidZipSignature(tempPath))
                     {
                         File.Delete(tempPath);
-                        return new StableFileResult { Status = StableFileStatus.InvalidFormat };
+                        return new StableReadResult(StableReadStatus.InvalidFormat);
                     }
 
                     var newHash = ComputeSha256(tempPath);
                     if (newHash == lastKnownHash)
                     {
                         File.Delete(tempPath);
-                        return new StableFileResult { Status = StableFileStatus.Unchanged, Hash = newHash };
+                        return new StableReadResult(StableReadStatus.Unchanged, Hash: newHash);
                     }
 
-                    return new StableFileResult
-                    {
-                        Status = StableFileStatus.Success,
-                        TempFilePath = tempPath,
-                        Hash = newHash
-                    };
+                    return new StableReadResult(StableReadStatus.Success, tempPath, newHash);
                 }
                 catch (IOException)
                 {
@@ -72,10 +68,10 @@ public class StableFileReader
             }
         }
 
-        return new StableFileResult { Status = StableFileStatus.Timeout };
+        return new StableReadResult(StableReadStatus.Timeout);
     }
 
-    private bool IsFileStable(string path)
+    private static async Task<bool> IsFileStableAsync(string path, CancellationToken cancellationToken)
     {
         try
         {
@@ -83,7 +79,7 @@ public class StableFileReader
             var initialSize = fileInfo.Length;
             var initialTime = fileInfo.LastWriteTimeUtc;
 
-            Thread.Sleep(500); // 500ms stabilization check
+            await Task.Delay(500, cancellationToken).ConfigureAwait(false);
 
             fileInfo.Refresh();
             var finalSize = fileInfo.Length;
@@ -138,20 +134,4 @@ public class StableFileReader
             totalRead += read;
         }
     }
-}
-
-public class StableFileResult
-{
-    public StableFileStatus Status { get; set; }
-    public string? TempFilePath { get; set; }
-    public string? Hash { get; set; }
-}
-
-public enum StableFileStatus
-{
-    Success,
-    Unchanged,
-    FileNotFound,
-    InvalidFormat,
-    Timeout
 }

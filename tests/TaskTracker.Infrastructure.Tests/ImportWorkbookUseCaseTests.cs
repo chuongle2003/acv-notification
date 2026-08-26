@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using ClosedXML.Excel;
 using TaskTracker.Application;
 using TaskTracker.Domain;
@@ -16,6 +17,7 @@ public class ImportWorkbookUseCaseTests : IDisposable
     private readonly string _dbPath;
     private readonly ImportWorkbookUseCase _useCase;
     private readonly SqliteTaskRepository _repository;
+    private readonly SqliteDeadlineResolutionRepository _resolutionRepository;
 
     public ImportWorkbookUseCaseTests()
     {
@@ -27,6 +29,7 @@ public class ImportWorkbookUseCaseTests : IDisposable
         migrator.MigrateUp();
 
         _repository = new SqliteTaskRepository(factory);
+        _resolutionRepository = new SqliteDeadlineResolutionRepository(factory);
 
         var clock = new FakeClock(DateTimeOffset.UtcNow, new DateOnly(2026, 8, 24));
         var reader = new ExcelReader();
@@ -42,6 +45,7 @@ public class ImportWorkbookUseCaseTests : IDisposable
             excelResolver,
             statusCalculator,
             _repository,
+            _resolutionRepository,
             clock);
     }
 
@@ -119,6 +123,38 @@ public class ImportWorkbookUseCaseTests : IDisposable
         Assert.NotNull(row3);
         Assert.Equal(TaskStatus.Completed, row3!.CurrentStatus);
         Assert.True(row3.IsCompleted);
+    }
+
+    [Fact]
+    public void Execute_ReappliesStoredSwappedResolutionAfterRefresh()
+    {
+        const string fileId = "correction-file";
+        using (var first = CreateValidExcel()) _useCase.Execute(fileId, first);
+        var ambiguous = _repository.GetCurrentRows(fileId)
+            .Single(row => row.DeadlineKind == DeadlineParserKind.ExcelDateAmbiguous);
+        var fingerprint = new RowIdentityService().GenerateRawDeadlineFingerprint(ambiguous.DeadlineRaw);
+
+        _resolutionRepository.Upsert(new DeadlineResolution(
+            ambiguous.LogicalRowKey,
+            fingerprint,
+            DeadlineParserKind.ExcelDateAmbiguous,
+            ambiguous.DeadlineRaw,
+            ambiguous.ExcelCandidate,
+            ambiguous.SwappedCandidate,
+            ambiguous.SwappedCandidate,
+            ambiguous.SwappedCandidate,
+            null,
+            ResolutionSource.UseSwappedDate,
+            false,
+            DateTimeOffset.UtcNow));
+
+        using (var refresh = CreateValidExcel()) _useCase.Execute(fileId, refresh);
+
+        var updated = _repository.GetCurrentRows(fileId)
+            .Single(row => row.LogicalRowKey == ambiguous.LogicalRowKey);
+        Assert.Equal(ResolutionSource.UseSwappedDate, updated.ResolutionSource);
+        Assert.Equal(ambiguous.SwappedCandidate, updated.ResolvedStartDate);
+        Assert.False(updated.RequiresReview);
     }
 
     [Fact]

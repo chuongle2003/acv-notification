@@ -107,6 +107,16 @@ public class SqliteDeadlineResolutionRepository : IResolutionStore
             r.RawDeadlineFingerprint == rawDeadlineFingerprint);
     }
 
+    public void Delete(string logicalRowKey, string rawDeadlineFingerprint)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        connection.Execute(@"
+            DELETE FROM deadline_resolutions
+            WHERE logical_row_key = @LogicalRowKey
+              AND raw_deadline_fingerprint = @RawDeadlineFingerprint
+        ", new { LogicalRowKey = logicalRowKey, RawDeadlineFingerprint = rawDeadlineFingerprint });
+    }
+
     private static string? DateOnlyToString(DateOnly? date) => date?.ToString("yyyy-MM-dd");
     private static string? TimeSpanToString(TimeSpan? time) => time?.ToString(@"hh\:mm");
     private static DateOnly? StringToDateOnly(object? value) =>

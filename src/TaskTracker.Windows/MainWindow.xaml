@@ -42,7 +42,7 @@
         </Grid>
 
         <!-- Summary Cards -->
-        <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,16">
+        <UniformGrid Grid.Row="1" Columns="6" Margin="0,0,0,16">
             <Border Background="#FEE2E2" BorderBrush="#F87171" BorderThickness="1" CornerRadius="4" Padding="16" Margin="4">
                 <StackPanel>
                     <TextBlock Text="QUÁ HẠN" FontSize="12" Foreground="#B91C1C" FontWeight="Bold"/>
@@ -70,6 +70,18 @@
                     <TextBlock Text="{Binding NeedsReviewCount}" FontSize="24" Foreground="#374151" FontWeight="Bold" Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
+            <Border Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="4" Padding="16" Margin="4">
+                <StackPanel>
+                    <TextBlock Text="BÌNH THƯỜNG" FontSize="12" Foreground="#475569" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding NormalCount}" FontSize="24" Foreground="#334155" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#DCFCE7" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="4" Padding="16" Margin="4">
+                <StackPanel>
+                    <TextBlock Text="HOÀN THÀNH" FontSize="12" Foreground="#15803D" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding CompletedCount}" FontSize="24" Foreground="#166534" FontWeight="Bold" Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
         </UniformGrid>
 
         <!-- Filters -->
@@ -83,6 +95,15 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Tìm kiếm:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBox Width="250" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Padding="4" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Text="Sheet:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <ComboBox Width="110" ItemsSource="{Binding SheetOptions}" SelectedItem="{Binding SelectedSheet}"/>
+                <TextBlock Text="Xử lý:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <ComboBox Width="130" ItemsSource="{Binding HandlerOptions}" SelectedItem="{Binding SelectedHandler}"/>
+                <TextBlock Text="Trạng thái:" VerticalAlignment="Center" Margin="12,0,4,0"/>
+                <ComboBox Width="120" ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding SelectedStatus}"/>
             </StackPanel>
 
             <CheckBox Grid.Column="2" Content="Chỉ hiện chưa xem" IsChecked="{Binding ShowUnreadOnly}" VerticalAlignment="Center"/>
@@ -103,7 +124,16 @@
                               AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="Horizontal"
                               HeadersVisibility="Column" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" Margin="0,0,8,0">
                         <DataGrid.Columns>
-                            <DataGridCheckBoxColumn Header="Đã xem" /> <!-- Binding will be added later -->
+                            <DataGridTemplateColumn Header="Đã xem" Width="65">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox HorizontalAlignment="Center"
+                                                  IsChecked="{Binding IsAcknowledged, Mode=OneWay}"
+                                                  Command="{Binding AcknowledgeCommand}"
+                                                  IsEnabled="{Binding CanAcknowledge}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Mức độ" Binding="{Binding CurrentStatus}" />
                             <DataGridTextColumn Header="Sheet" Binding="{Binding SheetName}" />
                             <DataGridTextColumn Header="STT" Binding="{Binding Stt}" />
@@ -111,7 +141,10 @@
                             <DataGridTextColumn Header="Nội dung" Binding="{Binding TaskContent}" Width="*" />
                             <DataGridTextColumn Header="Xử lý chính" Binding="{Binding PrimaryHandler}" />
                             <DataGridTextColumn Header="Thời hạn gốc" Binding="{Binding DeadlineRaw}" />
+                            <DataGridTextColumn Header="Ngày đã resolve" Binding="{Binding ResolvedStartDate}" />
                             <DataGridTextColumn Header="Còn lại (ngày)" Binding="{Binding DaysRemaining}" />
+                            <DataGridTextColumn Header="Kết quả" Binding="{Binding Result}" />
+                            <DataGridTextColumn Header="Dòng" Binding="{Binding SourceRowNumber}" Width="60" />
                         </DataGrid.Columns>
                     </DataGrid>
 
@@ -141,7 +174,13 @@
                                 <TextBlock Text="Thời hạn gốc:" FontSize="12" Foreground="Gray"/>
                                 <TextBlock Text="{Binding SelectedTask.DeadlineRaw}" Margin="0,0,0,8"/>
 
-                                <Button Content="Đã xem" Padding="8" Margin="0,16,0,0" Background="#2563EB" Foreground="White" BorderThickness="0"/>
+                                <TextBlock Text="Ô nguồn:" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Text="{Binding SelectedTask.DeadlineCellAddress}" Margin="0,0,0,8"/>
+
+                                <Button Content="Đã xem" Command="{Binding SelectedTask.AcknowledgeCommand}"
+                                        Padding="8" Margin="0,16,0,0" Background="#2563EB" Foreground="White" BorderThickness="0"/>
+                                <Button Content="Xóa sửa chữa cục bộ" Click="OnResetCorrectionClick"
+                                        Padding="8" Margin="0,8,0,0"/>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>

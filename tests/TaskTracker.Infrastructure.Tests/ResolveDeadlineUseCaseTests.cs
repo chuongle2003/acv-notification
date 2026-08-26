@@ -50,8 +50,13 @@ public class ResolveDeadlineUseCaseTests : IDisposable
                 SourceRowNumber = 1,
                 DocumentNumber = "111/CV",
                 DeadlineRaw = "04/08",
+                DeadlineCellKind = "DateTime",
                 IsCompleted = false,
                 DeadlineVersion = "v-ambiguous",
+                DeadlineKind = DeadlineParserKind.ExcelDateAmbiguous,
+                ExcelCandidate = new DateOnly(2026, 8, 4),
+                SwappedCandidate = new DateOnly(2026, 4, 8),
+                RequiresReview = true,
                 CurrentStatus = TaskStatus.NeedsReview
             },
             new TaskRow
@@ -104,12 +109,29 @@ public class ResolveDeadlineUseCaseTests : IDisposable
         var result = _useCase.Execute(new ResolveDeadlineRequest
         {
             SourceFileId = _fileId,
-            LogicalRowKey = "row-ambiguous",
+            LogicalRowKey = "row-normal",
             Action = DeadlineReviewAction.KeepExcelDate
         });
 
         Assert.False(result.Success);
         Assert.Contains("không có ngày gốc", result.ErrorMessage);
+    }
+
+    [Fact]
+    public void UseSwappedDate_PersistsSelectedCandidate()
+    {
+        var result = _useCase.Execute(new ResolveDeadlineRequest
+        {
+            SourceFileId = _fileId,
+            LogicalRowKey = "row-ambiguous",
+            Action = DeadlineReviewAction.UseSwappedDate
+        });
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(new DateOnly(2026, 4, 8), result.UpdatedRow!.ResolvedStartDate);
+        var resolution = Assert.Single(_resolutionRepository.GetAll());
+        Assert.Equal(ResolutionSource.UseSwappedDate, resolution.ResolutionSource);
+        Assert.Equal(new DateOnly(2026, 4, 8), resolution.SelectedStartDate);
     }
 
     [Fact]
@@ -176,6 +198,25 @@ public class ResolveDeadlineUseCaseTests : IDisposable
         // But a different raw text (user edited Excel) does NOT reuse it
         var notApplicable = _useCase.FindApplicableResolution("row-ambiguous", "05/08");
         Assert.Null(notApplicable);
+    }
+
+    [Fact]
+    public void Reset_RemovesCorrectionAndRestoresOriginalReviewState()
+    {
+        _useCase.Execute(new ResolveDeadlineRequest
+        {
+            SourceFileId = _fileId,
+            LogicalRowKey = "row-ambiguous",
+            Action = DeadlineReviewAction.ManualDate,
+            ManualDate = new DateOnly(2026, 9, 1)
+        });
+
+        var result = _useCase.Reset(_fileId, "row-ambiguous");
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal(TaskStatus.NeedsReview, result.UpdatedRow!.CurrentStatus);
+        Assert.True(result.UpdatedRow.RequiresReview);
+        Assert.Empty(_resolutionRepository.GetAll());
     }
 
     public void Dispose()

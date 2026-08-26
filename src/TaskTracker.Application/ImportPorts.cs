@@ -52,6 +52,19 @@ public interface ITaskRowStore
 {
     void CommitSnapshot(string snapshotId, string sourceFileId, IReadOnlyList<TaskRow> currentRows);
     IReadOnlyList<TaskRow> GetCurrentRows(string sourceFileId);
-    void UpdateDeadlineForCorrection(string sourceFileId, string logicalRowKey, string newDeadlineVersion,
-        DateOnly? alertDate, bool isCompleted, TaskStatus newStatus, int? daysRemaining, string newSnapshotId);
+    void UpdateDeadlineForCorrection(string sourceFileId, string logicalRowKey, DeadlineCorrectionUpdate update);
 }
+
+public record DeadlineCorrectionUpdate(
+    string DeadlineVersion,
+    DeadlineParserKind DeadlineKind,
+    DateOnly? ExcelCandidate,
+    DateOnly? SwappedCandidate,
+    DateOnly? ResolvedStartDate,
+    DateOnly? ResolvedEndDate,
+    TimeSpan? ResolvedTime,
+    ResolutionSource ResolutionSource,
+    bool RequiresReview,
+    TaskStatus Status,
+    int? DaysRemaining,
+    string SnapshotId);

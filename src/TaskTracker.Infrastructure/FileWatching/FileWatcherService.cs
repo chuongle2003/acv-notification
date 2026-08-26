@@ -15,6 +15,7 @@ public class FileWatcherService : IDisposable
 
     public event EventHandler<string>? FileChanged;
     public event EventHandler<string>? FileDeleted;
+    public event EventHandler<FileRenamedEventArgs>? FileRenamed;
 
     public FileWatcherService(TimeSpan debounceDelay = default)
     {
@@ -27,12 +28,13 @@ public class FileWatcherService : IDisposable
 
         _watcher.Changed += OnFileSystemEvent;
         _watcher.Created += OnFileSystemEvent;
-        _watcher.Renamed += OnFileSystemEvent;
+        _watcher.Renamed += OnRenamed;
         _watcher.Deleted += OnFileDeleted;
     }
 
     public void StartWatching(string filePath)
     {
+        StopWatching();
         _watchedFilePath = Path.GetFullPath(filePath);
 
         var dir = Path.GetDirectoryName(_watchedFilePath);
@@ -42,7 +44,9 @@ public class FileWatcherService : IDisposable
         }
 
         _watcher.Path = dir;
-        _watcher.Filter = Path.GetFileName(_watchedFilePath);
+        // Watch the directory and filter in handlers. A filename filter can
+        // suppress Renamed when the tracked file is renamed to a new basename.
+        _watcher.Filter = "*";
         _watcher.EnableRaisingEvents = true;
     }
 
@@ -50,6 +54,8 @@ public class FileWatcherService : IDisposable
     {
         _watcher.EnableRaisingEvents = false;
         _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
+        _debounceCts = null;
     }
 
     private void OnFileSystemEvent(object sender, FileSystemEventArgs e)
@@ -59,6 +65,7 @@ public class FileWatcherService : IDisposable
 
         // Debounce logic
         _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
         _debounceCts = new CancellationTokenSource();
         var token = _debounceCts.Token;
 
@@ -69,6 +76,23 @@ public class FileWatcherService : IDisposable
                 FileChanged?.Invoke(this, _watchedFilePath);
             }
         }, TaskScheduler.Default);
+    }
+
+    private void OnRenamed(object sender, RenamedEventArgs e)
+    {
+        if (_watchedFilePath == null) return;
+
+        if (string.Equals(e.FullPath, _watchedFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            OnFileSystemEvent(sender, e);
+        }
+        else if (string.Equals(e.OldFullPath, _watchedFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _debounceCts?.Cancel();
+            var oldPath = _watchedFilePath;
+            _watchedFilePath = e.FullPath;
+            FileRenamed?.Invoke(this, new FileRenamedEventArgs(oldPath, e.FullPath));
+        }
     }
 
     private void OnFileDeleted(object sender, FileSystemEventArgs e)
@@ -94,5 +118,17 @@ public class FileWatcherService : IDisposable
         StopWatching();
         _watcher.Dispose();
         _debounceCts?.Dispose();
+    }
+}
+
+public sealed class FileRenamedEventArgs : EventArgs
+{
+    public string OldPath { get; }
+    public string NewPath { get; }
+
+    public FileRenamedEventArgs(string oldPath, string newPath)
+    {
+        OldPath = oldPath;
+        NewPath = newPath;
     }
 }

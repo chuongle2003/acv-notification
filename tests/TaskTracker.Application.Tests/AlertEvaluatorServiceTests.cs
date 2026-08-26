@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TaskTracker.Application;
 using TaskTracker.Domain;
 using TaskStatus = TaskTracker.Domain.TaskStatus;
@@ -22,14 +24,31 @@ public class FakeNotificationRepository : INotificationStateRepository
     {
         foreach (var state in states)
         {
-            var key = $"{state.LogicalRowKey}_{state.AlertGroup}";
+            var key = $"{state.LogicalRowKey}_{state.DeadlineVersion}_{state.AlertGroup}";
             _store[key] = state;
         }
     }
 
-    public NotificationState? GetState(string rowKey, AlertGroup group)
+    public void Acknowledge(string logicalRowKey, string deadlineVersion, AlertGroup alertGroup,
+        DateTimeOffset acknowledgedAtUtc)
     {
-        _store.TryGetValue($"{rowKey}_{group}", out var val);
+        var key = $"{logicalRowKey}_{deadlineVersion}_{alertGroup}";
+        if (!_store.TryGetValue(key, out var state))
+        {
+            state = new NotificationState
+            {
+                LogicalRowKey = logicalRowKey,
+                DeadlineVersion = deadlineVersion,
+                AlertGroup = alertGroup
+            };
+            _store[key] = state;
+        }
+        state.AcknowledgedAtUtc = acknowledgedAtUtc;
+    }
+
+    public NotificationState? GetState(string rowKey, AlertGroup group, string version = "v1")
+    {
+        _store.TryGetValue($"{rowKey}_{version}_{group}", out var val);
         return val;
     }
 }
@@ -64,6 +83,7 @@ public class AlertEvaluatorServiceTests
         };
 
         var decisions = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(decisions);
 
         Assert.Single(decisions);
         var state = _repo.GetState("k1", AlertGroup.Upcoming);
@@ -80,7 +100,8 @@ public class AlertEvaluatorServiceTests
             new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
         };
 
-        _evaluator.Evaluate(tasks); // Notified at 10:00
+        var first = _evaluator.Evaluate(tasks); // Notified at 10:00
+        _evaluator.RecordNotified(first);
 
         _clock.UtcNow = _clock.UtcNow.AddHours(5); // 15:00
 
@@ -97,11 +118,13 @@ public class AlertEvaluatorServiceTests
             new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
         };
 
-        _evaluator.Evaluate(tasks); // 10:00
+        var first = _evaluator.Evaluate(tasks); // 10:00
+        _evaluator.RecordNotified(first);
 
         _clock.UtcNow = _clock.UtcNow.AddHours(13); // 23:00
 
         var decisions2 = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(decisions2);
 
         Assert.Single(decisions2);
         var state = _repo.GetState("k1", AlertGroup.Upcoming);
@@ -116,7 +139,8 @@ public class AlertEvaluatorServiceTests
             new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
         };
 
-        _evaluator.Evaluate(tasks);
+        var first = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(first);
 
         // Manually acknowledge
         var state = _repo.GetState("k1", AlertGroup.Upcoming)!;
@@ -137,7 +161,8 @@ public class AlertEvaluatorServiceTests
             new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
         };
 
-        _evaluator.Evaluate(tasks);
+        var first = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(first);
         _repo.GetState("k1", AlertGroup.Upcoming)!.AcknowledgedAtUtc = _clock.UtcNow;
 
         // User changed deadline in Excel, causing new version
@@ -146,6 +171,8 @@ public class AlertEvaluatorServiceTests
         var decisions2 = _evaluator.Evaluate(tasks);
 
         Assert.Single(decisions2); // Should alert again because version changed!
+        _evaluator.RecordNotified(decisions2);
+        Assert.NotNull(_repo.GetState("k1", AlertGroup.Upcoming, "v2"));
     }
 
     [Fact]
@@ -156,13 +183,15 @@ public class AlertEvaluatorServiceTests
             new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueToday }
         };
 
-        _evaluator.Evaluate(tasks);
+        var first = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(first);
         _repo.GetState("k1", AlertGroup.Upcoming)!.AcknowledgedAtUtc = _clock.UtcNow;
 
         // Status becomes overdue
         tasks[0] = new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.Overdue };
 
         var decisions2 = _evaluator.Evaluate(tasks);
+        _evaluator.RecordNotified(decisions2);
 
         Assert.Single(decisions2); // Overdue is a different group
         Assert.NotNull(_repo.GetState("k1", AlertGroup.Overdue));
@@ -180,5 +209,100 @@ public class AlertEvaluatorServiceTests
         };
 
         Assert.True(_evaluator.ShouldBatch(decisions));
+    }
+
+    [Fact]
+    public async Task Coordinator_FailedSend_DoesNotAdvanceNotificationState()
+    {
+        var coordinator = new NotificationCoordinator(_evaluator, new FakeNotificationSink(false));
+        var tasks = new[]
+        {
+            new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
+        };
+
+        var sent = await coordinator.EvaluateAndNotifyAsync(tasks, notificationsPaused: false);
+
+        Assert.Equal(0, sent);
+        Assert.Null(_repo.GetState("k1", AlertGroup.Upcoming));
+        Assert.Single(_evaluator.Evaluate(tasks));
+    }
+
+    [Fact]
+    public async Task Coordinator_Paused_DoesNotCallSinkOrAdvanceState()
+    {
+        var sink = new FakeNotificationSink(true);
+        var coordinator = new NotificationCoordinator(_evaluator, sink);
+        var tasks = new[]
+        {
+            new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
+        };
+
+        var sent = await coordinator.EvaluateAndNotifyAsync(tasks, notificationsPaused: true);
+
+        Assert.Equal(0, sent);
+        Assert.Equal(0, sink.CallCount);
+        Assert.Null(_repo.GetState("k1", AlertGroup.Upcoming));
+    }
+
+    [Fact]
+    public async Task Coordinator_ConcurrentEvaluations_SendOnlyOnce()
+    {
+        var sink = new DelayedNotificationSink();
+        var coordinator = new NotificationCoordinator(_evaluator, sink);
+        var tasks = new[]
+        {
+            new TaskRow { LogicalRowKey = "k1", DeadlineVersion = "v1", CurrentStatus = TaskStatus.DueSoon }
+        };
+
+        var first = coordinator.EvaluateAndNotifyAsync(tasks, notificationsPaused: false);
+        var second = coordinator.EvaluateAndNotifyAsync(tasks, notificationsPaused: false);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.Equal(1, results.Sum());
+        Assert.Equal(1, sink.CallCount);
+        Assert.Equal(1, _repo.GetState("k1", AlertGroup.Upcoming)!.NotificationCount);
+    }
+
+    private sealed class FakeNotificationSink : IAppNotificationSink
+    {
+        private readonly bool _succeeds;
+        public int CallCount { get; private set; }
+
+        public FakeNotificationSink(bool succeeds) => _succeeds = succeeds;
+
+        public Task<bool> ShowIndividualAsync(
+            NotificationDecision decision,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(_succeeds);
+        }
+
+        public Task<bool> ShowSummaryAsync(
+            IReadOnlyList<NotificationDecision> decisions,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(_succeeds);
+        }
+    }
+
+    private sealed class DelayedNotificationSink : IAppNotificationSink
+    {
+        public int CallCount { get; private set; }
+
+        public async Task<bool> ShowIndividualAsync(
+            NotificationDecision decision,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            await Task.Delay(50, cancellationToken);
+            return true;
+        }
+
+        public Task<bool> ShowSummaryAsync(
+            IReadOnlyList<NotificationDecision> decisions,
+            CancellationToken cancellationToken = default) =>
+            ShowIndividualAsync(decisions[0], cancellationToken);
     }
 }

@@ -28,6 +28,9 @@ public class SqliteSettingsStore : ISettingsStore
         {
             switch (key)
             {
+                case "source_file_id":
+                    settings.SourceFileId = value;
+                    break;
                 case "source_file_path":
                     settings.SourceFilePath = value;
                     break;
@@ -55,6 +58,7 @@ public class SqliteSettingsStore : ISettingsStore
         using var connection = _connectionFactory.CreateConnection();
         using var transaction = connection.BeginTransaction();
 
+        Upsert(connection, transaction, "source_file_id", settings.SourceFileId, now);
         Upsert(connection, transaction, "source_file_path", settings.SourceFilePath, now);
         Upsert(connection, transaction, "notifications_paused", settings.NotificationsPaused ? "1" : "0", now);
         Upsert(connection, transaction, "repeat_interval_minutes", settings.RepeatIntervalMinutes.ToString(), now);

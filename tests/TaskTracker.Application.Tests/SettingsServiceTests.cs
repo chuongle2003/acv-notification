@@ -13,7 +13,11 @@ public class SettingsServiceTests
         public AppSettings Stored { get; set; } = new();
 
         public AppSettings Load() => Stored;
-        public void Save(AppSettings settings) => Saved = settings;
+        public void Save(AppSettings settings)
+        {
+            Saved = settings;
+            Stored = settings;
+        }
     }
 
     [Fact]
@@ -59,5 +63,24 @@ public class SettingsServiceTests
         Assert.Equal(@"C:\data\kehoach.xlsx", settings.SourceFilePath);
         Assert.True(settings.NotificationsPaused);
         Assert.True(settings.StartWithWindows);
+    }
+
+    [Fact]
+    public void SelectSourceFile_KeepsIdForSamePathAndCreatesIdForDifferentPath()
+    {
+        var store = new InMemoryStore();
+        var service = new SettingsService(store);
+        var firstPath = Path.Combine(Path.GetTempPath(), "one.xlsx");
+        var secondPath = Path.Combine(Path.GetTempPath(), "two.xlsx");
+
+        var first = service.SelectSourceFile(firstPath);
+        var firstId = first.SourceFileId;
+        var same = service.SelectSourceFile(firstPath);
+        var sameId = same.SourceFileId;
+        var different = service.SelectSourceFile(secondPath);
+
+        Assert.False(string.IsNullOrWhiteSpace(firstId));
+        Assert.Equal(firstId, sameId);
+        Assert.NotEqual(firstId, different.SourceFileId);
     }
 }

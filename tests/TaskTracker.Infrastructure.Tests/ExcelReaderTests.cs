@@ -96,4 +96,30 @@ public class ExcelReaderTests
         var row9 = rows.First(r => r.SourceRowNumber == 9);
         Assert.Equal("1", row9.Stt);
     }
+
+    [Fact]
+    public void ReadWorkbook_PreservesMac1904DateSystem()
+    {
+        using var stream = new MemoryStream();
+        using (var workbook = new XLWorkbook())
+        {
+            workbook.Use1904DateSystem = true;
+            var sheet = workbook.Worksheets.Add("TUAN 34");
+            sheet.Cell("A1").Value = "Số công văn";
+            sheet.Cell("B1").Value = "Nội dung nhiệm vụ";
+            sheet.Cell("C1").Value = "Thời hạn";
+            sheet.Cell("D1").Value = "Kết quả";
+            sheet.Cell("A2").Value = "1904/CV";
+            sheet.Cell("B2").Value = "Kiểm tra hệ ngày";
+            sheet.Cell("C2").Value = new DateTime(2026, 8, 29);
+            workbook.SaveAs(stream);
+        }
+        stream.Position = 0;
+
+        var row = Assert.Single(new ExcelReader().ReadWorkbook(stream));
+        Assert.Equal(ExcelDateSystem.Mac1904, row.DateSystem);
+        var resolved = new ExcelDateResolver().Resolve(
+            row.DeadlineCell!.NumericValue!.Value, row.DateSystem, row.DeadlineCell.TextValue);
+        Assert.Equal(new DateOnly(2026, 8, 29), resolved.StartDate);
+    }
 }

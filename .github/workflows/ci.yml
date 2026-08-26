@@ -2,63 +2,64 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+    tags: ['v*']
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
-  build-linux:
-    name: Build & Test (Linux Core)
+  linux-core:
+    name: Linux core tests and Windows cross-build
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore TaskTracker.sln -p:EnableWindowsTargeting=true
+      - run: dotnet test tests/TaskTracker.Domain.Tests/TaskTracker.Domain.Tests.csproj -c Release --no-restore --logger trx --results-directory TestResults
+      - run: dotnet test tests/TaskTracker.Application.Tests/TaskTracker.Application.Tests.csproj -c Release --no-restore --logger trx --results-directory TestResults
+      - run: dotnet test tests/TaskTracker.Infrastructure.Tests/TaskTracker.Infrastructure.Tests.csproj -c Release --no-restore --logger trx --results-directory TestResults
+      - run: dotnet build src/TaskTracker.Windows/TaskTracker.Windows.csproj -c Release --no-restore -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false
+      - run: dotnet build tests/TaskTracker.Windows.Tests/TaskTracker.Windows.Tests.csproj -c Release --no-restore -p:EnableWindowsTargeting=true -p:AppxGeneratePriEnabled=false
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-linux
+          path: TestResults
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 10.0.x
-
-    - name: Restore dependencies
-      run: dotnet restore
-
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release --logger trx --results-directory "TestResults"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: test-results-linux
-        path: TestResults
-
-  build-windows:
-    name: Build & Test (Windows Full)
+  windows-full:
+    name: Windows full build, tests and publish
     runs-on: windows-latest
-
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 10.0.x
-
-    - name: Restore dependencies
-      run: dotnet restore
-
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
-
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release --logger trx --results-directory "TestResults"
-
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: test-results-windows
-        path: TestResults
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore TaskTracker.sln
+      - run: dotnet build TaskTracker.sln -c Release --no-restore
+      - run: dotnet test TaskTracker.sln -c Release --no-build --logger trx --results-directory TestResults
+      - run: dotnet publish src/TaskTracker.Windows/TaskTracker.Windows.csproj -c Release -p:PublishProfile=win-x64 -p:PublishDir=${{ github.workspace }}\artifacts\publish\win-x64\
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TaskTracker-win-x64
+          path: artifacts/publish/win-x64
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-windows
+          path: TestResults
+      - name: Install Inno Setup 6.7.3
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: choco install innosetup --version=6.7.3 -y
+      - name: Build Setup.exe
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' "/DPublishDir=${{ github.workspace }}\artifacts\publish\win-x64" "/DAppVersion=$version" installer\TaskTracker.iss
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: TaskTracker-Setup
+          path: artifacts/installer/*.exe

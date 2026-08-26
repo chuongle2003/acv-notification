@@ -1,0 +1,14 @@
+services:
+  dotnet-sdk:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /workspace
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_CLI_HOME: /workspace/.cache/dotnet-home
+      DOTNET_NOLOGO: "1"
+      NUGET_PACKAGES: /workspace/.cache/nuget
+      HOME: /workspace/.cache/dotnet-home
+    volumes:
+      - .:/workspace
+    command: ["bash", "eng/verify-linux.sh"]

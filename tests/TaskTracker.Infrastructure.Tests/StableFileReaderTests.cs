@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using TaskTracker.Application;
 using TaskTracker.Infrastructure.FileWatching;
 using Xunit;
 
@@ -29,7 +30,7 @@ public class StableFileReaderTests : IDisposable
     public async Task ReadStableFileAsync_FileNotFound_ReturnsCorrectStatus()
     {
         var result = await _reader.ReadStableFileAsync(Path.Combine(_testDir, "missing.xlsx"), "");
-        Assert.Equal(StableFileStatus.FileNotFound, result.Status);
+        Assert.Equal(StableReadStatus.FileNotFound, result.Status);
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public class StableFileReaderTests : IDisposable
 
         var result = await _reader.ReadStableFileAsync(sourcePath, "");
 
-        Assert.Equal(StableFileStatus.InvalidFormat, result.Status);
+        Assert.Equal(StableReadStatus.InvalidFormat, result.Status);
     }
 
     [Fact]
@@ -51,7 +52,7 @@ public class StableFileReaderTests : IDisposable
 
         var result = await _reader.ReadStableFileAsync(sourcePath, "old_hash");
 
-        Assert.Equal(StableFileStatus.Success, result.Status);
+        Assert.Equal(StableReadStatus.Success, result.Status);
         Assert.NotNull(result.TempFilePath);
         Assert.True(File.Exists(result.TempFilePath));
         Assert.NotNull(result.Hash);
@@ -77,7 +78,7 @@ public class StableFileReaderTests : IDisposable
         // Second read with same hash
         var result2 = await _reader.ReadStableFileAsync(sourcePath, hash!);
 
-        Assert.Equal(StableFileStatus.Unchanged, result2.Status);
+        Assert.Equal(StableReadStatus.Unchanged, result2.Status);
         Assert.Null(result2.TempFilePath); // Temp file should be deleted automatically
         Assert.Equal(hash, result2.Hash);
     }

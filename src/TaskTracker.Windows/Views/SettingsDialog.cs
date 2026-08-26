@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Threading.Tasks;
 using TaskTracker.Application;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
@@ -20,6 +21,7 @@ public class SettingsDialog : Window
 {
     private readonly AppSettings _settings;
     private readonly Func<string, bool>? _validatePath;
+    private readonly Func<Task<bool>>? _sendTestNotification;
 
     public AppSettings ResultSettings { get; private set; }
 
@@ -27,10 +29,14 @@ public class SettingsDialog : Window
     private readonly CheckBox _pauseCheck;
     private readonly CheckBox _autoStartCheck;
 
-    public SettingsDialog(AppSettings settings, Func<string, bool>? validatePath = null)
+    public SettingsDialog(
+        AppSettings settings,
+        Func<string, bool>? validatePath = null,
+        Func<Task<bool>>? sendTestNotification = null)
     {
         _settings = settings;
         _validatePath = validatePath;
+        _sendTestNotification = sendTestNotification;
         ResultSettings = new AppSettings();
 
         Title = "Cài đặt";
@@ -95,6 +101,35 @@ public class SettingsDialog : Window
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right
         };
+
+        if (_sendTestNotification != null)
+        {
+            var test = new Button
+            {
+                Content = "Gửi thông báo thử",
+                Padding = new Thickness(12, 5, 12, 5),
+                Margin = new Thickness(0, 0, 16, 0)
+            };
+            test.Click += async (_, _) =>
+            {
+                test.IsEnabled = false;
+                try
+                {
+                    var sent = await _sendTestNotification();
+                    if (!sent)
+                    {
+                        MessageBox.Show(this,
+                            "Không gửi được thông báo. Hãy kiểm tra Windows Notifications/Do Not Disturb.",
+                            "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                finally
+                {
+                    test.IsEnabled = true;
+                }
+            };
+            buttons.Children.Add(test);
+        }
 
         var ok = new Button { Content = "Lưu", Padding = new Thickness(16, 5, 16, 5), IsDefault = true };
         var cancel = new Button

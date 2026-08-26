@@ -84,6 +84,23 @@ public class FileWatcherServiceTests : IDisposable
         Assert.Equal(1, deleteCount);
     }
 
+    [Fact]
+    public async Task FileRenamed_ReportsOldAndNewPath()
+    {
+        using var watcher = new FileWatcherService(TimeSpan.FromMilliseconds(50));
+        FileRenamedEventArgs? observed = null;
+        watcher.FileRenamed += (_, args) => observed = args;
+        watcher.StartWatching(_testFile);
+        var renamed = Path.Combine(_testDir, "renamed.xlsx");
+
+        File.Move(_testFile, renamed);
+        await Task.Delay(150);
+
+        Assert.NotNull(observed);
+        Assert.Equal(Path.GetFullPath(_testFile), observed!.OldPath);
+        Assert.Equal(Path.GetFullPath(renamed), observed.NewPath);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
